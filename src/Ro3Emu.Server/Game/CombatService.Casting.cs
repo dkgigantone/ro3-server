@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Romsg;
 using Ro3Emu.Server.Data;
 using Ro3Emu.Server.Data.Config;
@@ -648,7 +648,7 @@ public sealed partial class CombatService
         {
             Id = id, OwnerId = s.Role!.Id, WorldScene = s.WorldScene, SceneGeneration = s.SceneGeneration,
             Attachment = s.Attachment, Request = req, Row = row, Origin = origin, StartedWalking = actor == null && s.Walking, WalkFromUtc = s.LastWalkUtc,
-            StartMs = Now + leadMs, ChantMs = ChantMs(s, row), ActionMs = SkillMs(s, row), Operator = actor,
+            StartMs = Now + leadMs, ChantMs = ChantMs(s, row), ActionMs = new SkillConfig(row).IsNormalAttack(_data) ? NormalAttackMs(s, row) : SkillMs(s, row), Operator = actor,
         };
         s.SkillCast = action;
         // A caster that may not walk while casting (_bMovement 0) saves up no walking distance until the cast ends: a client
@@ -700,6 +700,12 @@ public sealed partial class CombatService
         && !s.Dead && !s.SceneLoading && s.Role?.Id == action.OwnerId && s.WorldScene == action.WorldScene
         && (action.Operator == null || !action.Operator.Removing && action.Operator.ExpiresMs > Now);
 
+    private int NormalAttackMs(GameSession s, JsonElement row)
+    {
+        double aspd = Math.Clamp(_character.Stats(s)[115] / 100.0, 0.1, 20);
+        double influence = GameData.Int(row, "_iActionTimeInfluence") / 100.0;
+        return (int)Math.Round(Math.Max(1, GameData.Int(row, "_iActionTime")) / Math.Max(0.1, 1 + (aspd - 1) * influence));
+    }
     private int SkillMs(GameSession s, JsonElement row)
     {
         double aspd = Math.Clamp(_character.Stats(s)[115] / 100.0, 0.1, 5);
@@ -796,3 +802,4 @@ public sealed partial class CombatService
         _loop.TrackRuntimeDetached("cast movement cancellation", () => CancelCastAsync(s, SkillInterruptedInfo.Types.SkillInterruptType.Move));
     }
 }
+
