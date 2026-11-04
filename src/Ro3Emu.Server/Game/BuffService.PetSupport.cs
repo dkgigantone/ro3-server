@@ -40,13 +40,16 @@ public sealed partial class BuffService
                 .SelectMany(b => b.Changes.Select(change => (change.Attr, change.Value))).ToArray()
             : [];
 
-    /// <summary>A player's live guardian buffs alone, through the same attribute calculator. (inferred scope) Healing,
-    /// SP cost and chant modifiers read these, so equipment and ordinary buffs keep their previous effect.</summary>
-    internal StatSheet GuardianAttributes(GameSession p)
+    /// <summary>A buff whose damage attributes already have their own multiplier, so a hit must not read them off the sheet too:
+    /// a guardian's (GuardianOutgoingDamage), a Pet Tower pet's (ApplyPetSupportResistance) and a totem's (TotemEffects).</summary>
+    internal static bool HasOwnDamagePath(ActiveBuff buff) => buff.IsGuardianOwned || buff.IsTotemOwned
+        || buff.SourceId is >= TowerPetUnit.UidBase and < TowerPetUnit.UidLimit;
+
+    /// <summary>What the player's sheet holds from those buffs, to take off it.</summary>
+    internal StatSheet OwnDamagePathAttributes(GameSession p)
     {
         var raw = new Dictionary<int, double>();
-        long now = MonsterService.NowMs;
-        foreach (var buff in p.Buffs.Where(b => b.IsGuardianOwned && b.ExpireMs > now))
+        foreach (var buff in p.Buffs.Where(HasOwnDamagePath))
             foreach (var (attr, value) in buff.Changes) raw[(int)attr] = raw.GetValueOrDefault((int)attr) + value;
         return StatCalculator.Compute(raw, _data);
     }

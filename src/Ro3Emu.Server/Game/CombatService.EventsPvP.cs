@@ -73,9 +73,10 @@ public sealed partial class CombatService
             var targetRole = target.Role!;
             long sceneId = source.WorldScene;
             var (damage, result) = PlayerHitDamage(source, target, row);
+            if (damage > 0) foreach (var adjust in PvpDamageAdjusters) damage = Math.Max(0, adjust(source, row, result, damage));
             var committed = await CommitPlayerDamageAsync(target, damage, row,
                 () => currentSource() && CurrentPlayerHit(source, target, attackerRole, targetRole, sceneId)
-                    && CanPlayerHit(source, target));
+                    && CanPlayerHit(source, target), directHit: !new Data.Config.SkillConfig(row).IsFixedHit);
             if (committed == null) continue;
             (damage, long hp, long effective, long shieldDamage) = committed.Value;
             onHit?.Invoke(targetRole.Id, damage);
@@ -86,13 +87,16 @@ public sealed partial class CombatService
                 {
                     foreach (var handler in PvpDealt) handler(source, target, effective, hp == 0);
                     foreach (var handler in PvpDealtAsync) await handler(source, target, effective, hp == 0);
+                    foreach (var handler in PvpHitLanded) await handler(source, target, row, effective, hp == 0);
+                    await ReactToHitAsync(target, null, source, row, effective);
+                    await HolyLightBreaksKyrieAsync(target, row);
                 }
                 var hit = new SkillHitInfo
                 {
                     SrcID = attackerRole.Id, SkillId = skillId, ShowPoint = show, Split = HitSplit(row),
                     SessionId = session, SrcElement = AttackElement(source, row),
                     Dsts = { new DamageInfo { DstID = targetRole.Id, Damage = damage, SheildDamage = shieldDamage, HitResult = result,
-                    DstElement = 1, IsDead = hp == 0 } }
+                    DstElement = ArmorElement(target), IsDead = hp == 0 } }
                 };
                 var sourceViewers = CurrentPlayerHit(source, target, attackerRole, targetRole, sceneId)
                     ? _world.Viewers(source).Append(source) : [];
@@ -132,10 +136,18 @@ public sealed partial class CombatService
     /// (GuardianPlayerDebuffsAsync). After the hit, so the hit does not break a Sleep it brought itself.</summary>
     private async Task PvpHitDebuffsAsync(GameSession source, GameSession target, JsonElement row, Func<bool> current)
     {
-        if (IsGuardianEffect(row)) return;
+        if (IsGuardianEffect(row) || Script(row) == "HolyLight2") return; // Signum Crucis reaches Undead and Demons, and players are Demi-Human
         foreach (var tuple in HostileBuffs(row))
             if (current() && CanPlayerHit(source, target) && RollHostileBuff(tuple, source, null, target, null, out int id, out int duration))
                 await _buffs.AddAsync(target, id, duration, source.Role!.Id);
+    }
+
+    /// <summary>A card's status on the player it hit: the card rolled its own chance, and (inferred) the status then meets the target's
+    /// BuffTagConfig resistance as a skill's _kBuff2 would (<see cref="RollHostileBuff"/>).</summary>
+    internal async Task LandCardStatusAsync(GameSession source, GameSession target, int id, int ms)
+    {
+        if (RollHostileBuff(JsonSerializer.SerializeToElement(new[] { id, 10000, ms }), source, null, target, null, out int buff, out int duration))
+            await _buffs.AddAsync(target, buff, duration, source.Role!.Id);
     }
 
     private static IEnumerable<JsonElement> HostileBuffs(JsonElement row) => Tuples(row, "_kBuff2");
@@ -174,13 +186,14 @@ public sealed partial class CombatService
         var attack = _character.Stats(source); var defend = _character.Stats(target);
         var a = new Fighter(attack[AttributeId.Atk], attack[AttributeId.Matk], attack[AttributeId.Hit], attack[AttributeId.Cri],
             source.Progress!.Level, AttackElement(source, row))
-        { FixedDamage = (source.GmCombat & GmCombatSwitches.FixedDamage) != 0 };
-        var b = new Fighter(0, 0, 0, 0, target.Progress!.Level, 1)
+        { FixedDamage = (source.GmCombat & GmCombatSwitches.FixedDamage) != 0, Attributes = PlayerAttributes(source, attack), Race = PlayerRace, Size = PlayerSize };
+        var b = new Fighter(0, 0, 0, 0, target.Progress!.Level, ArmorElement(target))
         {
             Def = defend[AttributeId.Def], Mdef = defend[AttributeId.Mdef], Flee = defend[AttributeId.Flee], ResCri = defend[AttributeId.ResCri],
             FixedDamage = (target.GmCombat & GmCombatSwitches.FixedDamage) != 0,
+            Attributes = PlayerAttributes(target, defend), Race = PlayerRace, Size = PlayerSize,
         };
-        var (damage, result) = Damage(a, b, row, bonusCrit: GuardianPetRules.CriticalChance(row),
+        var (damage, result) = Damage(a, b, row, DamageBranch(source, null, row), bonusCrit: GuardianPetRules.CriticalChance(row),
             forceCrit: GuardianPetRules.CriticalAtHp(row, defend[AttributeId.Hp], defend[AttributeId.MaxHp]));
         damage = GuardianPetRules.DirectDamage(row, damage);
         damage = GuardianOutgoingDamage(source, row, damage);
