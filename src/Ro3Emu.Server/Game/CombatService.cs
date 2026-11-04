@@ -296,6 +296,8 @@ public sealed partial class CombatService : IGameTicker
     /// VehicleSeatConfig _kMainSkills / _kSkills); their cooldowns are the ordinary SkillConfig ones.
     /// </summary>
     public List<Func<GameSession, int, bool>> GrantedSkill { get; } = [];
+    /// <summary>The player fires this skill from a seat with a crosshair (DungeonService.Cannon): the client names what it aims at.</summary>
+    public Func<GameSession, int, bool>? AimsFromSeat { get; set; }
     /// <summary>World-core owns the dead player's explicit accept/decline invitation.</summary>
     public Func<GameSession, GameSession, JsonElement, Task>? ReviveOffer { get; set; }
     public Func<GameSession, int>? ReviveCheck { get; set; }
@@ -360,6 +362,18 @@ public sealed partial class CombatService : IGameTicker
     /// Bolt 1200411, Lightning Bolt 1200503, Double Strafe 1300304) showed no hit; the bullet goes in 31120 instead
     /// (<see cref="BulletEffect"/>).
     /// </summary>
+    /// <summary>A heal's hit effect. HitEffect's fallback 1000002 plays ReceivingDamage, so a healed ally flinched: EffectData 14007800 and its family (show * 1000 + 800) hold only
+    /// the heal's own effect. Then any of the show's effects with no hit reaction, then none (inferred).</summary>
+    private int HealEffect(long scriptShow)
+    {
+        var effects = _data.SkillTemplateTable("Lua_Config_EffectData");
+        long own = scriptShow * 1000 + 800;
+        if (SkillEffectData.Find(effects, own) is { HasDamage: true }) return (int)own;
+        for (long id = scriptShow * 100; id < scriptShow * 100 + 100; id++)
+            if (SkillEffectData.Find(effects, id) is { HasDamage: true, HasHitReaction: false }) return (int)id;
+        return 0;
+    }
+
     private int HitEffect(long scriptShow)
     {
         var effects = _data.SkillTemplateTable("Lua_Config_EffectData");
@@ -760,7 +774,7 @@ public sealed partial class CombatService : IGameTicker
         double p1 = ratios.Length > branch ? ratios[branch] : 10000, p2 = flats.Length > branch ? flats[branch] : 0;
         // A player's _kDamageFormulaExtra raises the percentage, not the flat part.
         double percent = a.Attributes is { } sheet ? p1 * DamageFormula.Factor(new Data.Config.SkillConfig(skill), branch, sheet) : p1;
-        double dmg = DamageSource(skill, a.Atk, a.Matk, magic) * percent / 10000 + p2;
+        double dmg = DamageSource(skill, a.Atk, a.Matk, magic) * percent / 10000 + p2 + DamageFormula.Flat(new Data.Config.SkillConfig(skill), branch);
         long Penetration(int id) => a.Attributes?.Invoke(id) ?? 0;
         dmg *= DefenseFactor(a.Level, magic
             ? DamageAttributes.DefenseAfterPenetration(b.Mdef, Penetration(DamageAttributes.IgnoreMdef), Penetration(DamageAttributes.IgnoreMdefPercent))
@@ -783,7 +797,7 @@ public sealed partial class CombatService : IGameTicker
     /// </summary>
     internal static double DamageSource(JsonElement skill, double atk, double matk, bool magic) => new Data.Config.SkillConfig(skill).SkillId switch
     {
-        12201 => matk,
+        12201 or 14316 => matk, // 14316: Double Holy Light's "Neutral ranged Physical damage equal to your Magic ATK"
         15210 or 15240 => atk + matk,
         _ => magic ? matk : atk,
     };

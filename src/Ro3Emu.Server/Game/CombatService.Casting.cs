@@ -422,6 +422,15 @@ public sealed partial class CombatService
     private int ValidateTarget(GameSession s, JsonElement row, CastSkillReq req, Vec3 origin, float slack = 0, float askedRange = 0)
     {
         int release = (int)GameData.Int(row, "_iRelease");
+        if (AimsFromSeat?.Invoke(s, (int)new SkillConfig(row).Id) == true)
+        {
+            // The crosshair's ray (LC_TPSComponent._raycast) names its unit in targetsId; a shot past everything hits nothing.
+            // The row's 3 m height range is not asked: the deck stands up to 20 m above the patrols it fires at.
+            if (req.TargetId == 0 && req.TargetsId.Count > 0) req.TargetId = req.TargetsId[0];
+            if (FindMonster(s.WorldScene, req.TargetId) is not { } aimed || !CanHitMonster(s, aimed)) req.TargetId = 0;
+            req.TargetPos ??= origin.Clone();
+            return 0;
+        }
         var monster = FindMonster(s.WorldScene, req.TargetId);
         bool revive = IsResurrection(row);
         var player = req.TargetId == s.Role!.Id ? s : FindPlayer(s, req.TargetId, revive);
@@ -590,6 +599,7 @@ public sealed partial class CombatService
 
     private async Task StartCooldownAsync(GameSession s, JsonElement row, int? askedMode = null)
     {
+        if (ShadowEchoWaits(s, row)) return;
         if ((s.GmCombat & GmCombatSwitches.NoCooldown) != 0) return; // GmNoCD / GmUnlimit 1: no skill cooldown starts
         int group = (int)GameData.Int(row, "_iSkillID"), mode = (int)GameData.Int(row, "_iMode");
         var stats = _character.Stats(s);

@@ -19,7 +19,7 @@ public sealed partial class TalentProcs
     private const int WargAutoEveryMs = 2500;
 
     /// <summary>"Casting X resets this skill's Cooldown", by the cast's group: Warg Bite "resetting the Cooldown of Warg Hunt"; Swift Warg by Warg Charge or
-    /// Warg Hunt; Flowing Shadow by Shadow Guard or Thousand Shadows; Piercing Shadow "Immediately refreshes Shadow Guard". Looping Shadow has no row to read.</summary>
+    /// Warg Hunt; Flowing Shadow by Shadow Guard, Thousand Shadows or Looping Shadow; Piercing Shadow "Immediately refreshes Shadow Guard".</summary>
     private static readonly Dictionary<long, int[]> CastResets = new()
     {
         [13325] = [13323],
@@ -27,6 +27,7 @@ public sealed partial class TalentProcs
         [13323] = [13326],
         [15322] = [15321],
         [15323] = [15321],
+        [15320] = [15321], // Looping Shadow, "chuanying"
         [15326] = [15323],
     };
 
@@ -73,7 +74,7 @@ public sealed partial class TalentProcs
                 break;
             // Arrow Barrage on Arrow Shower: "40% chance to cast 2 times, cooldown ${5} seconds", [group, chance]; its row's _iCD is the same 5 s.
             case "ArrowShowerBD" when logic is [_, var chance, ..] && _combat.Rolls.Proc(10000) < chance && Ready(s, ArrowBarrageKey, cast.Cd):
-                await _combat.CastExtraAsync(s, cast.Row, [.. processed.Where(m => m.Hp > 0)]);
+                await _combat.CastExtraAsync(s, cast.Row, [.. processed.Where(m => m.Hp > 0)], parametersApplied: true);
                 break;
         }
         if (target.Hp <= 0) return;

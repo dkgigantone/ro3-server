@@ -86,11 +86,14 @@ public sealed partial class CombatService
         if (!CurrentCastMap(s, action)) return;
         // SkillConfig._bMovement is enum_SkillLockMoveType (may the caster walk while casting), not a displacement.
         await EndReadingAsync(s, action);
+        if (ReturnsToShadow(s, row)) { await ReturnToShadowAsync(s, action); return; }
+        if (Script(row) is "RetreatingShadows" or "RetreatingShadowsS1") LeaveShadow(s, action);
         await MoveCasterAsync(s, action);
         if (!CurrentCastMap(s, action)) return;
         if (await StartChannelAsync(s, action)) return;
         if (Script(row) == "VenomSplasher") { await PlantDynamiteAsync(s, action); return; }
         if (Script(row) == "BombSuicide1") { await EnergyReleaseAsync(s, action); return; }
+        if (Script(row) == "AxeLeapAttack") { await HighEnergyTakeOffAsync(s, action); return; }
         if (Script(row) == "huixuanshizizhan") { await ApplyEffectsAsync(s, WithRow(action, await CrossRipperRowAsync(s, row)), action.Request.TargetPos ?? action.Origin); return; }
         await ApplyEffectsAsync(s, action, action.Request.TargetPos ?? action.Origin);
     }
@@ -248,6 +251,9 @@ public sealed partial class CombatService
                 if (damage)
                 {
                     var (amount, result) = MonsterHitDamage(s, attacker, target, row, script);
+                    long beforeShield = amount;
+                    amount = await _buffs.AbsorbAsync(target, amount);
+                    long shieldDamage = beforeShield - amount;
                     long beforeHp = target.Hp;
                     target.Hp = Math.Max(0, beforeHp - amount);
                     long effective = beforeHp - target.Hp;
@@ -271,7 +277,7 @@ public sealed partial class CombatService
                             catch (Exception ex) { _log.LogError(ex, "Monster damage callback failed for {Uid}", target.Uid); }
                         }
                     if (field is { TouchesLeft: > 0 } && result != DamageHitResult.Miss) field.TouchesLeft--;
-                    hit.Dsts.Add(new DamageInfo { DstID = target.Uid, Damage = amount, HitResult = result, DstElement = target.Template.Element, IsDead = target.Hp == 0 });
+                    hit.Dsts.Add(new DamageInfo { DstID = target.Uid, Damage = amount, SheildDamage = shieldDamage, HitResult = result, DstElement = target.Template.Element, IsDead = target.Hp == 0 });
                 }
                 if (CanApplyMoreEffects())
                     foreach (var tuple in Tuples(row, "_kBuff2"))
@@ -341,6 +347,7 @@ public sealed partial class CombatService
                         DamageBeShield = result.SheildDamage, DamageType = result.DamageType, HitResult = result.HitResult, SkillId = hit.SkillId,
                     });
                 }
+                if (hit.Dsts.All(d => d.DamageType == DamageType.Heal)) hit.ShowPoint = HealEffect(new SkillConfig(row).ScriptShow);
                 if (CurrentCaster() && hit.Dsts.Any(d => d.HitResult != DamageHitResult.Miss)) await _buffs.RecoverEnergyOnHitAsync(s, row);
                 var sourceViewers = CurrentCaster() ? _world.Viewers(s).Append(s) : [];
                 var hitViewers = processed.SelectMany(t => t.Viewers).Concat(sourceViewers).Distinct().ToArray();
@@ -420,14 +427,14 @@ public sealed partial class CombatService
     /// An extra cast of a SkillConfig row on monsters the caller chose, through the ordinary effect path (damage, kills,
     /// statistics, 31101). It is an extra skill: it pays nothing, starts no cooldown and triggers no CastResolved.
     /// </summary>
-    internal Task CastExtraAsync(GameSession s, JsonElement row, IReadOnlyList<MonsterUnit> targets)
+    internal Task CastExtraAsync(GameSession s, JsonElement row, IReadOnlyList<MonsterUnit> targets, bool parametersApplied = false)
     {
         if (s.Role == null || targets.Count == 0) return Task.CompletedTask;
         var target = targets[0];
         var action = new ActiveSkillCast
         {
             Id = ++_sessionIds, OwnerId = s.Role.Id, WorldScene = s.WorldScene, SceneGeneration = s.SceneGeneration,
-            Attachment = s.Attachment, Row = ExtraRow(s, row),
+            Attachment = s.Attachment, Row = parametersApplied ? row : ExtraRow(s, row),
             Request = new CastSkillReq
             {
                 SkillId = (int)new SkillConfig(row).Id, TargetId = target.Uid, TargetPos = target.Pos.Clone(), Face = s.Face,
@@ -719,6 +726,8 @@ public sealed partial class CombatService
         // MoveAsync updates persistent position and AOI membership from the same authoritative destination.
         s.PreviousPosition = start;
         s.Position = end;
+        s.LastWalkUtc = DateTime.UtcNow; // the dash ends the walk it interrupted (GameSession.WalkReportLag)
+        s.Walking = false;
         await _world.MoveAsync(s, new WalkReq { Pos = end, Dir = s.Face, Face = s.Face, BStop = true }, forceTeleport: true);
     }
 
