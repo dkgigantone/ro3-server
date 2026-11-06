@@ -1,4 +1,6 @@
 using Romsg;
+using System.Diagnostics;
+using System.IO;
 using Ro3Emu.Server.Data.Config;
 using Ro3Emu.Server.Data;
 using Ro3Emu.Server.Maps;
@@ -257,23 +259,82 @@ public sealed partial class DungeonService
             await GmCommands.ReplyAsync(s, FormattableString.Invariant($"Walked to {to.X:0.0},{to.Z:0.0} (test aid: the walk report's region check ran)."));
             return;
         }
-        if (Active(s) is not { } a || Step(a) is not { } step)
+        string Reach(SceneActorUnit u) => _data.Row("NPCConfig", u.NpcId) is { } row
+            ? (GameData.Number(row.GetProperty("_iInteractDistance")) ?? 0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "?";
+
+        if (args.Length == 0)
+        {
+            var a = Active(s);
+            var step = a == null ? null : Step(a);
+            var lines = new List<string>
+            {
+                "RO3Emu !actors diagnostic",
+                $"Captured: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}",
+                $"Character: {s.Role?.Name ?? "(unknown)"} (role id {s.Role?.Id.ToString() ?? "?"})",
+                $"Current scene entry: {s.SceneEntry}",
+                FormattableString.Invariant($"Player position: X={s.Position.X:0.###}, Y={s.Position.Y:0.###}, Z={s.Position.Z:0.###}, Face={s.Face}")
+            };
+
+            if (a == null || step == null)
+            {
+                lines.Add("Scripted scene status: no active scripted scene step.");
+            }
+            else
+            {
+                lines.Add($"Scripted scene: {a.Plan.SceneEntry}");
+                lines.Add($"Step: {a.Wave + 1}/{a.Plan.Waves.Count} - {step.Stage}");
+                lines.Add($"Step done: {a.StepDone}; settled: {a.Settled}; room closed: {a.Room.Closed}");
+                lines.Add("Completion conditions: " + (step.Complete.Count == 0
+                    ? "(none; kill/fight completion)"
+                    : string.Join(" OR ", step.Complete.Select(t => $"{t.Kind} {t.Id}"))));
+                if (step.All) lines.Add("Completion mode: ALL listed conditions are required.");
+                lines.Add($"Actors ({a.SceneActors.Count}):");
+                if (a.SceneActors.Count == 0) lines.Add("  none");
+                foreach (var u in a.SceneActors)
+                    lines.Add(FormattableString.Invariant(
+                        $"  NPC {u.NpcId}; entity type {u.EntityType}; uid {u.Uid}; point {u.Point}; position X={u.X:0.###}, Y={u.Y:0.###}, Z={u.Z:0.###}; reach {Reach(u)} m; interactions [{string.Join(',', _catalog.Interactions(u.NpcId))}]; buffs [{string.Join(',', u.Buffs.Select(b => b.ConfigId))}]"));
+            }
+
+            var reportDir = Path.Combine(AppContext.BaseDirectory, "diagnostics");
+            Directory.CreateDirectory(reportDir);
+            var roleId = s.Role?.Id.ToString() ?? "unknown";
+            var reportPath = Path.Combine(reportDir, $"actors-{roleId}-{DateTime.Now:yyyyMMdd-HHmmss-fff}.txt");
+            File.WriteAllLines(reportPath, lines);
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "notepad.exe",
+                    Arguments = $"\"{reportPath}\"",
+                    UseShellExecute = true
+                });
+                await GmCommands.ReplyAsync(s, $"!actors report saved and opened in Notepad: {reportPath}");
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Could not open !actors report in Notepad; report saved at {Path}", reportPath);
+                await GmCommands.ReplyAsync(s, $"!actors report saved, but Notepad could not be opened: {reportPath}");
+            }
+
+            // Preserve the original compact chat diagnostic too.
+            if (a != null && step != null)
+            {
+                var actors = a.SceneActors.Select(u => FormattableString.Invariant(
+                    $"{u.NpcId} (entity type {u.EntityType}, uid {u.Uid}) at {u.X:0.0},{u.Y:0.0},{u.Z:0.0} reach {Reach(u)} m interactions [{string.Join(',', _catalog.Interactions(u.NpcId))}] buffs [{string.Join(',', u.Buffs.Select(b => b.ConfigId))}]"));
+                await GmCommands.ReplyAsync(s, $"Step {a.Wave + 1}/{a.Plan.Waves.Count} '{step.Stage}' completes on "
+                    + string.Join(" or ", step.Complete.Select(t => $"{t.Kind} {t.Id}")) + ". Actors: "
+                    + (a.SceneActors.Count == 0 ? "none" : string.Join("; ", actors)));
+            }
+            return;
+        }
+
+        if (Active(s) is not { } active || Step(active) is not { } activeStep)
         {
             await GmCommands.ReplyAsync(s, "Not in a scripted scene step.");
             return;
         }
-        string Reach(SceneActorUnit u) => _data.Row("NPCConfig", u.NpcId) is { } row
-            ? (GameData.Number(row.GetProperty("_iInteractDistance")) ?? 0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "?";
-        if (args.Length == 0)
-        {
-            var actors = a.SceneActors.Select(u => FormattableString.Invariant(
-                $"{u.NpcId} (entity type {u.EntityType}, uid {u.Uid}) at {u.X:0.0},{u.Y:0.0},{u.Z:0.0} reach {Reach(u)} m interactions [{string.Join(',', _catalog.Interactions(u.NpcId))}] buffs [{string.Join(',', u.Buffs.Select(b => b.ConfigId))}]"));
-            await GmCommands.ReplyAsync(s, $"Step {a.Wave + 1}/{a.Plan.Waves.Count} '{step.Stage}' completes on "
-                + string.Join(" or ", step.Complete.Select(t => $"{t.Kind} {t.Id}")) + ". Actors: "
-                + (a.SceneActors.Count == 0 ? "none" : string.Join("; ", actors)));
-            return;
-        }
-        if (!int.TryParse(args[0], out int npc) || a.SceneActors.FirstOrDefault(u => u.NpcId == npc) is not { } actor)
+        if (!int.TryParse(args[0], out int npc) || active.SceneActors.FirstOrDefault(u => u.NpcId == npc) is not { } actor)
             throw new ArgumentException("<npcId> of a scene actor shown now (see !actors)");
         // One metre beside it (inside every reach used here, 2-5 m), not on its exact point: a zero-length
         // line-of-sight test (LC_InteractManager's CheckDirectPass) is not something to rely on. The jump goes in the
