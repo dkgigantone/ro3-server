@@ -163,6 +163,8 @@ public sealed class GameSession(PhonestChannel channel, TrafficLog traffic)
 
     /// <summary>Active buffs (BuffService) and cooldown ends in server ms: skills by group id, items by id, item share groups.</summary>
     public List<ActiveBuff> Buffs { get; } = [];
+    /// <summary>The role's kept buffs are on it, so a logout may save over them (BuffService.Offline).</summary>
+    internal bool OfflineBuffsLoaded { get; set; }
     /// <summary>Buff-owned portions of 2701/2702/2711; 2701 also contains CombatService's fighting bit.</summary>
     public ulong BuffStatusBits { get; set; }
     public ulong ForbiddenBits { get; set; }
@@ -206,6 +208,8 @@ public sealed class GameSession(PhonestChannel channel, TrafficLog traffic)
     internal WalkAllowance WalkAllowance { get; } = new();
     /// <summary>A swing a move cancelled holds the next normal attack until this time (CombatService.CancelCastAsync).</summary>
     internal long SwingLockUntilMs { get; set; }
+    /// <summary>Until when a skill's 31112 moves this player (RoleSessionService.WalkAsync drops the client's walks meanwhile).</summary>
+    internal long SkillMovedUntilMs { get; set; }
 
     /// <summary>The game message budgets of this connection (GameMessageHandler.WithinRate).</summary>
     internal SessionRates? MessageRates { get; set; }
@@ -376,6 +380,8 @@ public sealed class GameSession(PhonestChannel channel, TrafficLog traffic)
     public Romsg.DBSkillData? SkillPlans { get; set; }
     /// <summary>The normal attack the last skill sync put on the wheel for the ridden battle mount (0 for the career's own).</summary>
     internal int WheelAttack { get; set; }
+    /// <summary>The follow-up statuses (SkillService.FollowUps) the last skill sync showed on the wheel.</summary>
+    internal string FollowUpsShown { get; set; } = "";
     public DateTime TotemSwitchUtc { get; set; }
     /// <summary>5063 personal pre-buy counters and joined auction history.</summary>
     public Romsg.DBAuction? Auction { get; set; }
@@ -486,8 +492,11 @@ public sealed class GameSession(PhonestChannel channel, TrafficLog traffic)
     /// <summary>5035 field Bonus Time, daily consumption and drop history; transient activity never survives logout.</summary>
     public WildAfkService.State? WildAfk { get; set; }
 
-    /// <summary>Property list (AoIProperty idx, value) for ENTITYSELF / AOI bases, kept current by CharacterService.Refresh.</summary>
-    public (long Id, long Value)[] EntityProperties { get; set; } = [];
+    /// <summary>
+    /// Property list (AoIProperty idx, data, baseData) for ENTITYSELF / AOI bases, kept current by CharacterService.Refresh.
+    /// Base is the stat sheet's pre-percentage part (StatSheet.Base), the value 31008 sends as baseData.
+    /// </summary>
+    public (long Id, long Value, long Base)[] EntityProperties { get; set; } = [];
 
     /// <summary>Property ids already sent in 31008; retained across local Refresh until a zero is sent.</summary>
     public HashSet<int> SentPropertyIds { get; } = [];

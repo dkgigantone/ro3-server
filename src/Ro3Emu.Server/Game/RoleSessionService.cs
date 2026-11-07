@@ -74,7 +74,14 @@ public sealed partial class RoleSessionService(RoleStore roles, Data.GameData da
                 await patience.WaitAsync();
             }
         }
-        await systems.LeaveAsync(session, Step, () => SavePosition(session));
+        // Read before leaving the scene, written after the position: the position barrier goes first.
+        byte[]? offlineBuffs = session.OfflineBuffsLoaded ? buffs.OfflineState(session) : null;
+        session.OfflineBuffsLoaded = false;
+        await systems.LeaveAsync(session, Step, () =>
+        {
+            SavePosition(session);
+            if (offlineBuffs != null && snapshotRole is { } kept) roles.SaveOfflineBuffs(kept, offlineBuffs);
+        });
         if (snapshotRole is { } released) roles.ReleaseLoginSnapshot(released);
         if (failures.Count != 0) throw new AggregateException("Essential role cleanup failed.", failures);
     }
@@ -282,6 +289,8 @@ public sealed partial class RoleSessionService(RoleStore roles, Data.GameData da
         session.SkillModeCds.Clear();
         session.SkillCds.Clear();
         session.Buffs.Clear();
+        buffs.RestoreOffline(session, roles.LoadOfflineBuffs(role.Id));
+        session.OfflineBuffsLoaded = true;
         session.BuffEffectCds.Clear();
         session.ImmuneDeathOffer = null;
         session.ImmuneRecoveryUntilMs = 0;
@@ -359,6 +368,12 @@ public sealed partial class RoleSessionService(RoleStore roles, Data.GameData da
             SceneService.HoldWalk(session, DateTime.UtcNow, walking: false);
             return;
         }
+        // A skill's 31112 is moving the player: the client stops its walk and its perform agent puts the unit at the move's
+        // start and carries it to the end (LC_Scene_Sync._skillStartMove: StopMove, LC_PerformEffect_Agent.SkillStartMove).
+        // A walk that comes meanwhile was sent before the client had the move, or reports a point of it; taken, it put the
+        // server back where the move began, and the next walk from the landing was snapped back there (Rift Impact, whose
+        // move starts at its first attack point, 0 s). (inferred) It is dropped, without a correction.
+        if (MonsterService.NowMs < session.SkillMovedUntilMs) return;
         if (!await scene.AcceptWalkAsync(session, walk)) return;
         session.PreviousPosition = session.Position;
         session.Position = walk.Pos;
@@ -486,10 +501,11 @@ public sealed partial class RoleSessionService(RoleStore roles, Data.GameData da
         // AttributeConfig ids: STR..LUK 1-6, derived 101-116, HP/SP 2000/2001, level 2002 (CharacterService.Refresh).
         var properties = session.EntityProperties.Length > 0
             ? session.EntityProperties
-            : [(101, 100), (2000, 100), (102, 50), (2001, 50), (AttrSpeed, session.Speed), (AttrBaseAtkSpeed, 100)];
-        foreach (var (idx, value) in properties)
+            : [(101, 100, 100), (2000, 100, 100), (102, 50, 50), (2001, 50, 50), (AttrSpeed, session.Speed, session.Speed), (AttrBaseAtkSpeed, 100, 100)];
+        // baseData: the pre-percentage part (CharacterService.EntityPropertiesOf), as 31008 sends it.
+        foreach (var (idx, value, baseValue) in properties)
         {
-            entity.Property.Add(new AoIProperty { Idx = idx, Data = value, BaseData = value });
+            entity.Property.Add(new AoIProperty { Idx = idx, Data = value, BaseData = baseValue });
         }
         entity.EquipInfo.Add(session.EquipLook);
         BuffService.PopulateEntity(session, entity);
