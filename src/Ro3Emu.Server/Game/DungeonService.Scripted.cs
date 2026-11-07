@@ -90,8 +90,10 @@ public sealed partial class DungeonService
         // A fight-only step has no client event to wait for: its kills complete it.
         a.StepDone = step.Complete.Count == 0;
         await SyncSceneActorsAsync(a, step.Actors);
-        _log.LogInformation("Scripted scene {Scene} step {Step} '{Stage}' begins; actors {Actors}", a.Plan.SceneEntry, a.Wave + 1, step.Stage,
-            string.Join("; ", a.SceneActors.Select(u => $"{u.NpcId} at {u.X:0.0},{u.Z:0.0} buffs [{string.Join(',', u.Buffs.Select(b => b.ConfigId))}]")));
+        string actorsShown = _log.IsEnabled(LogLevel.Information)
+            ? string.Join("; ", a.SceneActors.Select(u => $"{u.NpcId} at {u.X:0.0},{u.Z:0.0} buffs [{string.Join(',', u.Buffs.Select(b => b.ConfigId))}]"))
+            : "";
+        LogStepBegins(a.Plan.SceneEntry, a.Wave + 1, step.Stage, actorsShown);
         await SyncCompanionsAsync(a, step.Companions);
         a.StepGeneration++;
         if (step.Seek is { } seek) StartSeek(a, seek);
@@ -107,6 +109,9 @@ public sealed partial class DungeonService
                 StageNum = a.Wave + 1, LevelNum = 1, Vars = { new DungeonVar { VarId = StoryVar, Vi64 = { step.Story } } },
             });
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Scripted scene {Scene} step {Step} '{Stage}' begins; actors {Actors}")]
+    private partial void LogStepBegins(long scene, int step, string stage, string actors);
 
     /// <summary>
     /// Shows exactly the step's actors: one already shown at the same point with the same NPC stays (its buffs change in

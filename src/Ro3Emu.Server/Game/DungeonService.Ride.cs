@@ -137,15 +137,16 @@ public sealed partial class DungeonService
         if (step.RideAfter == 0 || carrier == null || _catalog.GuidePath(a.Plan.SceneEntry, step.RideAfter) is not { } path)
         {
             if (step.RideAfter != 0)
-                _log.LogInformation("Scripted scene {Scene} ride {Route} not started: carrier {Carrier}, route found {Found}",
-                    a.Plan.SceneEntry, step.RideAfter, carrier?.NpcId, carrier != null && _catalog.GuidePath(a.Plan.SceneEntry, step.RideAfter) != null);
+            {
+                bool routeFound = carrier != null && _catalog.GuidePath(a.Plan.SceneEntry, step.RideAfter) != null;
+                LogRideNotStartedCarrier(a.Plan.SceneEntry, step.RideAfter, carrier?.NpcId ?? 0, routeFound);
+            }
             return false;
         }
         float speed = RideSpeed(carrier) * step.RideSpeedPercent / 100f, length = RideLength(path);
         if (speed <= 0 || length <= 0)
         {
-            _log.LogInformation("Scripted scene {Scene} ride {Route} not started: speed {Speed} m/s, length {Length} m",
-                a.Plan.SceneEntry, step.RideAfter, speed, length);
+            LogRideNotStartedSpeed(a.Plan.SceneEntry, step.RideAfter, speed, length);
             return false;
         }
         TimeSpan delay = a.Riders.Count > 0 ? Paced(RideStartDelayMs) : step.RideAlone ? Paced(RideAloneDelayMs) : TimeSpan.Zero;
@@ -154,9 +155,10 @@ public sealed partial class DungeonService
         {
             DriveTo = step.DriveAfter, SpeedCm = step.RideSpeedPercent != 100 ? (long)MathF.Round(speed * 100) : 0, Alone = step.RideAlone,
         };
-        _log.LogInformation("Scripted scene {Scene} ride {Route} starts in {Delay} ms: {Length:0.0} m at {Speed:0.0} m/s, alone {Alone}, "
-            + "carrier {Carrier} at {X:0.0},{Z:0.0}, route from {FromX:0.0},{FromZ:0.0} to {ToX:0.0},{ToZ:0.0}", a.Plan.SceneEntry, step.RideAfter,
-            (long)delay.TotalMilliseconds, length, speed, step.RideAlone, carrier.NpcId, carrier.X, carrier.Z, path[0].X, path[0].Z, path[^1].X, path[^1].Z);
+        long delayMs = (long)delay.TotalMilliseconds;
+        var (routeStart, routeEnd) = (path[0], path[^1]);
+        LogRideStarts(a.Plan.SceneEntry, step.RideAfter, delayMs, length, speed, step.RideAlone, carrier.NpcId, carrier.X, carrier.Z,
+            routeStart.X, routeStart.Z, routeEnd.X, routeEnd.Z);
         // A carrier that walks alone offers nothing on its way (the feeding it has just had would still show its button).
         if (step.RideAlone) _loop.PostLegacy(() => SetActorBuffsAsync(carrier, []), "dungeon ride");
         _loop.ScheduleLegacy(delay, () => RideTickAsync(a, ride, arrived), "dungeon ride");
@@ -165,6 +167,23 @@ public sealed partial class DungeonService
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Scripted scene {Scene} ride: moving unit {Npc} failed")]
     private partial void LogRideMoveFailed(Exception e, long scene, int npc);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Scripted scene {Scene} ride {Route} not started: carrier {Carrier}, route found {Found}")]
+    private partial void LogRideNotStartedCarrier(long scene, long route, int carrier, bool found);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Scripted scene {Scene} ride {Route} not started: speed {Speed} m/s, length {Length} m")]
+    private partial void LogRideNotStartedSpeed(long scene, long route, float speed, float length);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Scripted scene {Scene} ride {Route} starts in {Delay} ms: {Length:0.0} m at {Speed:0.0} m/s, alone {Alone}, "
+        + "carrier {Carrier} at {X:0.0},{Z:0.0}, route from {FromX:0.0},{FromZ:0.0} to {ToX:0.0},{ToZ:0.0}")]
+    private partial void LogRideStarts(long scene, long route, long delay, float length, float speed, bool alone, int carrier, float x, float z,
+        float fromX, float fromZ, float toX, float toZ);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Scripted scene {Scene} carrier {Carrier} shown again at {X:0.0},{Z:0.0} as {Uid}")]
+    private partial void LogCarrierShownAgain(long scene, int carrier, float x, float z, long uid);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Scripted scene {Scene} ride ended: carrier {Carrier} at {X:0.0},{Z:0.0}")]
+    private partial void LogRideEnded(long scene, int carrier, float x, float z);
 
     /// <summary>The route's points past <paramref name="from"/> and before <paramref name="to"/> metres, in route order.</summary>
     internal static IEnumerable<(float X, float Y, float Z, float Face)> RideCorners(IReadOnlyList<(float X, float Y, float Z)> path,
@@ -219,7 +238,7 @@ public sealed partial class DungeonService
         await _instances.RemovePropAsync(a.Room, old);
         if (await _instances.AddPropAsync(a.Room, unit)) a.SceneActors[at] = unit;
         else a.SceneActors.RemoveAt(at);
-        _log.LogInformation("Scripted scene {Scene} carrier {Carrier} shown again at {X:0.0},{Z:0.0} as {Uid}", a.Plan.SceneEntry, unit.NpcId, unit.X, unit.Z, unit.Uid);
+        LogCarrierShownAgain(a.Plan.SceneEntry, unit.NpcId, unit.X, unit.Z, unit.Uid);
     }
 
     private async Task RideTickAsync(Attempt a, Ride ride, Func<Task> arrived)
@@ -237,8 +256,7 @@ public sealed partial class DungeonService
         await WalkLegAsync(a, ride, walked);
         if (done >= 1)
         {
-            _log.LogInformation("Scripted scene {Scene} ride ended: carrier {Carrier} at {X:0.0},{Z:0.0}", a.Plan.SceneEntry, ride.Carrier.NpcId,
-                ride.Carrier.X, ride.Carrier.Z);
+            LogRideEnded(a.Plan.SceneEntry, ride.Carrier.NpcId, ride.Carrier.X, ride.Carrier.Z);
             // A carrier that walked alone is shown again where it parked: the client keeps an NPC's interaction range at the place it
             // appeared (inferred), and the next step's interaction would only be offered at the start.
             if (ride.Alone) await ReshowCarrierAsync(a, ride.Carrier);
