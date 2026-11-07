@@ -772,8 +772,9 @@ public sealed partial class CombatService
     private int NormalAttackMs(GameSession s, JsonElement row)
     {
         double aspd = Math.Clamp(_character.Stats(s)[115] / 100.0, 0.1, 20);
-        double influence = GameData.Int(row, "_iActionTimeInfluence") / 100.0;
-        return (int)Math.Round(Math.Max(1, GameData.Int(row, "_iActionTime")) / Math.Max(0.1, 1 + (aspd - 1) * influence));
+        var skill = new SkillConfig(row);
+        double influence = skill.ActionTimeInfluence / 100.0;
+        return (int)Math.Round(Math.Max(1, skill.ActionTime) / Math.Max(0.1, 1 + (aspd - 1) * influence));
     }
     private int SkillMs(GameSession s, JsonElement row)
     {
