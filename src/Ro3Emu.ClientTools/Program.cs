@@ -14,6 +14,7 @@ if (args.Length < 2)
           release-launcher <repo dir> <channel> <Ro3EmuLauncher.exe> <version>
           scan    <client dir> <text>...        list string literals in the client DLLs
           members <client dir> <dll> <type> [method]  list a type's methods with their parameters
+          il      <client dir> <dll> <type> [method]  print the IL of a type's methods (read-only)
           delete-role <server url> <account> <password> <character name or id>
         <client dir> is the folder with ro3.exe, <server url> e.g. http://203.0.113.5:5380.
         Without a .pem the gate key is downloaded from the server.
@@ -53,6 +54,9 @@ try
             return await DeleteRole(args[1], args[2], args[3], args[4]);
         case "members":
             ClientPatcher.Members(args[1], args[2], args[3], args.Length > 4 ? args[4] : null);
+            return 0;
+        case "il":
+            ClientPatcher.Il(args[1], args[2], args[3], args.Length > 4 ? args[4] : null);
             return 0;
         case "restore":
             ClientPatcher.Restore(args[1]);

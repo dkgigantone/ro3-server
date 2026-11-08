@@ -34,7 +34,7 @@ public static class ClientPatcher
     /// </summary>
     private const string GmtManagerType = "GMT.GMTManager";
 
-    internal static readonly string[] PatchedFiles = ["Happyengine.Network.dll", "Assembly-CSharp.dll", "Phonest.Common.dll", "Happyengine.Base.Runtime.dll", "Unity.TextMeshPro.dll", "HUD.dll", "HappyEngine.Resource.dll", "UnityEngine.UI.dll", "UnityEngine.CoreModule.dll"];
+    internal static readonly string[] PatchedFiles = ["Happyengine.Network.dll", "Assembly-CSharp.dll", "Phonest.Common.dll", "Happyengine.Base.Runtime.dll", "Unity.TextMeshPro.dll", "HUD.dll", "HappyEngine.Resource.dll", "Render.dll", "UnityEngine.UI.dll", "UnityEngine.CoreModule.dll"];
 
     /// <summary>--verbose: GS_Debug.ShowLog always true, so the Lua debug logs (Lua_Debug reads it) reach Player.log.</summary>
     public static bool VerboseLogs { get; set; }
@@ -118,7 +118,8 @@ public static class ClientPatcher
         "Happyengine.Base.Runtime.dll" when VerboseLogs => ForceShowLog,
         "Unity.TextMeshPro.dll" => m => TextSink.PatchTmp(m, locDll, hooksDll),
         "HUD.dll" => m => TextSink.PatchHud(m, locDll),
-        "HappyEngine.Resource.dll" => m => TextSink.PatchLauncher(m, locDll),
+        "HappyEngine.Resource.dll" => m => TextSink.PatchLauncher(m, locDll) + "; " + ResourceProbePatch.Patch(m, hooksDll),
+        "Render.dll" => m => ResourceProbePatch.PatchRender(m, hooksDll),
         "UnityEngine.UI.dll" => m => ImageSwapPatch.Patch(m, hooksDll),
         "UnityEngine.CoreModule.dll" => m => OpenUrlPatch.Patch(m, hooksDll),
         _ => null,
@@ -457,6 +458,32 @@ public static class ClientPatcher
             foreach (var m in t.Methods.Where(m => method == null || m.Name == method))
                 Console.WriteLine($"{t.FullName}::{m.Name}({string.Join(", ", m.Parameters.Select(p => p.ParameterType.Name + " " + p.Name))}) static={m.IsStatic} body={m.HasBody}");
     }
+
+    /// <summary>Prints the IL of a type's methods (optionally only those named <paramref name="method"/>) in a client DLL, read-only: to see how the client does something before patching it.</summary>
+    public static void Il(string clientDir, string dll, string type, string? method)
+    {
+        var path = File.Exists(Path.Combine(BackupDir(clientDir), dll)) ? Path.Combine(BackupDir(clientDir), dll) : Path.Combine(ManagedDir(clientDir), dll);
+        using var assembly = AssemblyDefinition.ReadAssembly(path, new ReaderParameters { InMemory = true });
+        foreach (var t in assembly.MainModule.GetTypes().Where(t => t.FullName == type || t.Name == type))
+            foreach (var m in t.Methods.Where(m => m.HasBody && (method == null || m.Name == method)))
+            {
+                Console.WriteLine($"== {t.FullName}::{m.Name}({string.Join(", ", m.Parameters.Select(p => p.ParameterType.FullName + " " + p.Name))}) -> {m.ReturnType.FullName}");
+                foreach (var v in m.Body.Variables) Console.WriteLine($"   local V{v.Index}: {v.VariableType.FullName}");
+                foreach (var i in m.Body.Instructions) Console.WriteLine($"  IL_{i.Offset:X4} {i.OpCode} {Operand(i)}".TrimEnd());
+            }
+    }
+
+    private static string Operand(Instruction i) => i.Operand switch
+    {
+        null => "",
+        string s => "\"" + s + "\"",
+        Instruction target => $"IL_{target.Offset:X4}",
+        Instruction[] targets => string.Join(",", targets.Select(t => $"IL_{t.Offset:X4}")),
+        MemberReference member => member.FullName,
+        VariableDefinition v => "V" + v.Index,
+        ParameterDefinition p => "arg:" + p.Name,
+        _ => i.Operand.ToString() ?? "",
+    };
 
     /// <summary>
     /// A literal rewrite: every literal <paramref name="Match"/> accepts becomes <paramref name="Replacement"/>; with

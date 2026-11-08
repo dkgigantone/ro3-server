@@ -1,0 +1,5 @@
+﻿Key,ItemName,Description,StyleBonus,Rarity,Stall,StallPrice,OriginHat,ItemID,WardrobeID,RenamedFrom
+ValkyrieHat,Valkyrie Hat,A winged helmet of the Valkyries.,10,Advanced,TRUE,25000,,3004901,10049001,Valkyriehat
+CatEarBeret,Cat-Ear Beret,A beret with little cat ears.,10,Advanced,TRUE,25000,maoerbeileimao,3004902,10049002,Maoerbeileimao
+AdvancedMusketeerHat,Advanced Musketeer Hat,"Advanced Musketeer Hat, imported from Origin.",10,Advanced,TRUE,25000,haidaomao2,3004903,10049003,PirateHat2
+SeaBoneHelmet,Skeleton Helmet,"Sea Bone Helmet, imported from Origin.",10,Advanced,TRUE,25000,haigutoukui,3004904,10049004,

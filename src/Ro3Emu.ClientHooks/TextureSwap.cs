@@ -29,6 +29,8 @@ namespace Ro3Emu.ClientHooks
         private static readonly Dictionary<string, Texture2D> Decoded = new Dictionary<string, Texture2D>(StringComparer.Ordinal);
         private static readonly Dictionary<int, Sprite> Sprites = new Dictionary<int, Sprite>();
         private static readonly HashSet<int> Ours = new HashSet<int>();
+        // Names with no embedded replacement and no PNG in the icons folder (looked up once).
+        private static readonly HashSet<string> Missing = new HashSet<string>(StringComparer.Ordinal);
 
         private static Dictionary<string, string> Resources
         {
@@ -39,12 +41,19 @@ namespace Ro3Emu.ClientHooks
             }
         }
 
+        private static bool Active => Resources.Count > 0 || _diskIcons;
+
+        private static bool _diskIcons;
+
+        /// <summary>Folder for replacement PNGs that are not embedded: &lt;client&gt;\ro3emu\icons\&lt;sprite or texture name&gt;.png.</summary>
+        internal static string IconDir() => Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? "", Path.Combine("ro3emu", "icons"));
+
         /// <summary>RawImage.texture = MapTexture(value).</summary>
         public static Texture MapTexture(Texture texture)
         {
             try
             {
-                if (texture == null || Resources.Count == 0 || Ours.Contains(texture.GetInstanceID())) return texture;
+                if (texture == null || !Active || Ours.Contains(texture.GetInstanceID())) return texture;
                 return TryGet(texture.name, out var replacement) ? replacement : texture;
             }
             catch (Exception e)
@@ -59,7 +68,7 @@ namespace Ro3Emu.ClientHooks
         {
             try
             {
-                if (sprite == null || Resources.Count == 0) return sprite;
+                if (sprite == null || !Active) return sprite;
                 int id = sprite.GetInstanceID();
                 if (Ours.Contains(id)) return sprite;
                 if (Sprites.TryGetValue(id, out var made)) return made;
@@ -97,7 +106,7 @@ namespace Ro3Emu.ClientHooks
         /// <summary>Graphic.OnEnable: swap what a prefab serialized.</summary>
         public static void Enabled(UnityEngine.Object graphic)
         {
-            if (Resources.Count == 0) return;
+            if (!Active) return;
             if (graphic is RawImage raw)
             {
                 var mapped = MapTexture(raw.texture);
@@ -113,7 +122,8 @@ namespace Ro3Emu.ClientHooks
         private static bool TryGet(string name, out Texture2D texture)
         {
             texture = null;
-            if (name == null || !Resources.TryGetValue(name, out var resource)) return false;
+            if (name == null || Missing.Contains(name)) return false;
+            if (!Resources.TryGetValue(name, out var resource)) return TryDisk(name, out texture);
             if (Decoded.TryGetValue(name, out texture)) return texture != null;
             byte[] png;
             var asm = typeof(TextureSwap).Assembly;
@@ -131,6 +141,26 @@ namespace Ro3Emu.ClientHooks
             return tex != null;
         }
 
+        /// <summary>A replacement PNG from the icons folder (decoded the first time its original is drawn).</summary>
+        private static bool TryDisk(string name, out Texture2D texture)
+        {
+            texture = null;
+            if (Decoded.TryGetValue(name, out texture)) return texture != null;
+            var key = name.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? name.Substring(0, name.Length - 4) : name;
+            var path = Path.Combine(IconDir(), key + ".png");
+            if (!File.Exists(path)) { Missing.Add(name); return false; }
+            var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false) { name = name };
+            if (!ImageConversion.LoadImage(tex, File.ReadAllBytes(path), true)) tex = null;
+            else
+            {
+                Ours.Add(tex.GetInstanceID());
+                Debug.Log("[Ro3Emu.TextureSwap] " + name + " replaced from " + path);
+            }
+            Decoded[name] = tex;
+            texture = tex;
+            return tex != null;
+        }
+
         /// <summary>The replacements travel inside this DLL (EmbeddedResource "textures/&lt;name&gt;.png").</summary>
         private static void Index()
         {
@@ -138,7 +168,16 @@ namespace Ro3Emu.ClientHooks
             foreach (var resource in typeof(TextureSwap).Assembly.GetManifestResourceNames())
                 if (resource.StartsWith(ResourcePrefix, StringComparison.Ordinal))
                     _resources[Path.GetFileNameWithoutExtension(resource.Substring(ResourcePrefix.Length))] = resource;
-            Debug.Log("[Ro3Emu.TextureSwap] " + _resources.Count + " embedded replacement(s)");
+            try
+            {
+                Directory.CreateDirectory(IconDir());
+                _diskIcons = true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[Ro3Emu.TextureSwap] icons folder: " + e.GetType().Name + ": " + e.Message);
+            }
+            Debug.Log("[Ro3Emu.TextureSwap] " + _resources.Count + " embedded replacement(s); icons folder " + (_diskIcons ? IconDir() : "off"));
         }
     }
 }

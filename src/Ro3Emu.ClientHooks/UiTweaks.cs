@@ -27,6 +27,7 @@ namespace Ro3Emu.ClientHooks
         {
             Diagnostics.AutoDump();
             TextFit.Tick();
+            HatSwap.Animate();
             if (++_frame % 10 != 0) return;
             try
             {
@@ -47,6 +48,8 @@ namespace Ro3Emu.ClientHooks
                 PassChallenges.Tick();
                 PassButton.Tick();
                 TitleButton.Tick();
+                HatSwap.Tick();
+                HatStudio.Tick();
             }
             catch (Exception e)
             {
