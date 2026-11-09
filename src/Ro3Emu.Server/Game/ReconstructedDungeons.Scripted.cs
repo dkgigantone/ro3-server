@@ -69,6 +69,16 @@ public sealed partial class ReconstructedDungeons
 
         /// <summary>The client's steerable slide while the step runs (DungeonService.Slide; null: none).</summary>
         public Slide? Slide { get; init; }
+
+        /// <summary>Barrels rolling during the step's boss fight (DungeonService.Rollers; null: none).</summary>
+        public Rollers? Rollers { get; init; }
+
+        /// <summary>Explosions on the deck from the step's start (DungeonService.Booms; null: none).</summary>
+        public Booms? Booms { get; init; }
+
+        /// <summary>The step does not advance before this many milliseconds after it began (0: no floor): the scene's
+        /// scripted lines run out first (inferred from the clips: the cannons appear after the opening script).</summary>
+        public int HoldUntilMs { get; init; }
     }
 
     /// <summary>
@@ -89,14 +99,39 @@ public sealed partial class ReconstructedDungeons
     /// _iTime has run out. <paramref name="Ignored"/> answers an event the step ignores, <paramref name="Complete"/> the
     /// event that completes it.
     /// </summary>
-    public sealed record Reaction(int Speaker, IReadOnlyList<int> Start, Response? Ignored, Response? Complete);
+    public sealed record Reaction(int Speaker, IReadOnlyList<int> Start, Response? Ignored, Response? Complete)
+    {
+        /// <summary>Lines that go out at fixed times from the step's start, each by its own speaker (null: none). Unlike
+        /// <see cref="Start"/> they do not wait for the previous line (measured from the original's clip, inferred).</summary>
+        public IReadOnlyList<TimedLine>? Timed { get; init; }
+    }
+
+    /// <summary>One <see cref="Reaction.Timed"/> line: the ChatConfig row <paramref name="Say"/> goes out <paramref name="AtMs"/>
+    /// after the step starts, carrying the uid of the step's <paramref name="Speaker"/> actor (0: none).</summary>
+    public sealed record TimedLine(int AtMs, int Say, int Speaker);
 
     /// <summary>
     /// One reaction: the ChatConfig row <paramref name="Say"/> (0: none) and the BuffConfig row <paramref name="Buff"/>
     /// (0: none) put on the step's <paramref name="On"/> actor that stands at the point of the actor the player used. A
     /// completing reaction holds the next step (or the settlement) until its line's _iTime has run out.
     /// </summary>
-    public sealed record Response(int Say, int Buff, int On);
+    public sealed record Response(int Say, int Buff, int On)
+    {
+        /// <summary>Explosions that start when the event happens (null: none).</summary>
+        public Booms? Booms { get; init; }
+
+        /// <summary>Milliseconds the line waits after the event before it goes out (0: at once); the completing step holds
+        /// that long too (inferred: the explosions after talking to the captain come first).</summary>
+        public int DelayMs { get; init; }
+
+        /// <summary>A PlotInterpretation id the client plays after the line (0: none; the ship's crash video 130161), and how
+        /// long the completing step holds for it (the video's length is not in the config; inferred).</summary>
+        public long Story { get; init; }
+        public int StoryHoldMs { get; init; }
+        /// <summary>Plots that follow the story by themselves (the crash video's QTE plays 130162 or 130163); the step holds until
+        /// one of them ends instead of when the story itself does (empty: the story's own end).</summary>
+        public IReadOnlyList<long> StoryThen { get; init; } = [];
+    }
 
     /// <summary>
     /// Cover from a boss's sweeping attack (inferred, the story Pharaoh's 3120702 after the raid Pharaoh's "Pharaoh is
@@ -107,6 +142,40 @@ public sealed partial class ReconstructedDungeons
     /// and <paramref name="Depth"/> metres past the cover.
     /// </summary>
     public sealed record Shelter(int Boss, int Cover, int Tip, long Skill, int EveryMs, int WarnMs, float Width, float Depth);
+
+    /// <summary>
+    /// Barrels rolling across the deck while a fight's <paramref name="Boss"/> lives (inferred, the airship's Evil Boss 4: the
+    /// scene editor has barrel start points 32-35 and lane patrols 69-72, the barrel NPCs 5300020/23/24/25 and no script). From
+    /// <paramref name="FirstMs"/>, then every <paramref name="EveryMs"/>, each NPC of <paramref name="Npcs"/> rolls the patrol at
+    /// the same index of <paramref name="Routes"/> at its own speed and is removed at the end. A participant within
+    /// <paramref name="Radius"/> metres of a barrel is hit by <paramref name="Skill"/> (the boss as its source), at most once
+    /// per <see cref="HitEveryMs"/>. <paramref name="Tip"/> is an optional ChatConfig row sent when a roll starts (0: none).
+    /// </summary>
+    /// <summary>One explosion: <paramref name="AtMs"/> after the start, at the scene-editor point <paramref name="Point"/>.</summary>
+    public sealed record Boom(int AtMs, long Point);
+
+    /// <summary>
+    /// Explosions on the deck (inferred: the scene editor's "敌方火炮特效位置" points 59/60 and "火炮特效标记" 31 are where the enemy
+    /// cannons' effects land, and the invisible NPC 5300037 owns skill 5353101, range 99 km, 200 ms, with no hit data): each
+    /// shot spawns <paramref name="Npc"/> at its point for a moment and plays <paramref name="Skill"/> from it at that point
+    /// to every player. When <paramref name="Shooter"/> (an NPC of the room, 0: none) is alive it plays
+    /// <paramref name="ShooterSkill"/> at the point first. <paramref name="Persist"/>: the shots go on after the step is done.
+    /// The effect only; it hurts nobody.
+    /// </summary>
+    public sealed record Booms(int Npc, long Skill, int Shooter, long ShooterSkill, bool Persist, IReadOnlyList<Boom> Shots);
+
+    public sealed record Rollers(int Boss, IReadOnlyList<int> Npcs, IReadOnlyList<long> Routes, long Skill, int FirstMs, int EveryMs,
+        float Radius, int Tip, int HitEveryMs)
+    {
+        /// <summary>When above 0 the barrels roll once, as a single phase, from the moment the boss is at or below this percent of
+        /// its health (inferred from the original's clip: about 8 s of barrels at low boss health); <see cref="FirstMs"/> and
+        /// <see cref="EveryMs"/> then do not apply. 0: the periodic rounds.</summary>
+        public int BelowPct { get; init; }
+
+        /// <summary>The phase's rounds (each rolls every NPC once) and the gap between them in milliseconds.</summary>
+        public int Waves { get; init; } = 1;
+        public int WaveMs { get; init; }
+    }
 
     /// <summary>
     /// A hide-and-seek game (inferred, Moonlight Flower's 3120802): the step's first actor opens with its
@@ -208,6 +277,22 @@ public sealed partial class ReconstructedDungeons
                     slide.TryGetProperty("camera", out var camera) ? camera.GetInt32() : 0,
                     slide.TryGetProperty("buff", out var buff) ? buff.GetInt32() : 0)
                 : null,
+            Booms = s.TryGetProperty("booms", out var booms) ? ParseBooms(booms) : null,
+            HoldUntilMs = s.TryGetProperty("after", out var untilAfter) && untilAfter.TryGetProperty("holdUntil", out var until) ? until.GetInt32() : 0,
+            Rollers = s.TryGetProperty("rollers", out var rollers)
+                ? new Rollers(rollers.GetProperty("boss").GetInt32(),
+                    [.. rollers.GetProperty("npcs").EnumerateArray().Select(v => v.GetInt32())],
+                    [.. rollers.GetProperty("routes").EnumerateArray().Select(v => v.GetInt64())],
+                    rollers.GetProperty("skill").GetInt64(), rollers.GetProperty("firstMs").GetInt32(),
+                    rollers.GetProperty("everyMs").GetInt32(), rollers.GetProperty("radius").GetSingle(),
+                    rollers.TryGetProperty("tip", out var tip) ? tip.GetInt32() : 0,
+                    rollers.TryGetProperty("hitEveryMs", out var hitEvery) ? hitEvery.GetInt32() : 2000)
+                {
+                    BelowPct = rollers.TryGetProperty("belowPct", out var below) ? below.GetInt32() : 0,
+                    Waves = rollers.TryGetProperty("waves", out var waves) ? waves.GetInt32() : 1,
+                    WaveMs = rollers.TryGetProperty("waveMs", out var waveMs) ? waveMs.GetInt32() : 0,
+                }
+                : null,
         };
     }
 
@@ -218,12 +303,39 @@ public sealed partial class ReconstructedDungeons
     private static Reaction ParseReaction(JsonElement r) => new(r.GetProperty("speaker").GetInt32(),
         r.TryGetProperty("start", out var start) ? [.. start.EnumerateArray().Select(v => v.GetInt32())] : [],
         r.TryGetProperty("ignored", out var ignored) ? ParseResponse(ignored) : null,
-        r.TryGetProperty("complete", out var complete) ? ParseResponse(complete) : null);
+        r.TryGetProperty("complete", out var complete) ? ParseResponse(complete) : null)
+    {
+        Timed = r.TryGetProperty("timed", out var timed)
+            ? [.. timed.EnumerateArray().Select(l => new TimedLine(l.GetProperty("at").GetInt32(), l.GetProperty("say").GetInt32(),
+                l.TryGetProperty("speaker", out var who) ? who.GetInt32() : 0))]
+            : null,
+    };
 
     private static Response ParseResponse(JsonElement r) => new(
         r.TryGetProperty("say", out var say) ? say.GetInt32() : 0,
         r.TryGetProperty("buff", out var buff) ? buff.GetInt32() : 0,
-        r.TryGetProperty("on", out var on) ? on.GetInt32() : 0);
+        r.TryGetProperty("on", out var on) ? on.GetInt32() : 0)
+    {
+        DelayMs = r.TryGetProperty("delayMs", out var delay) ? delay.GetInt32() : 0,
+        Booms = r.TryGetProperty("booms", out var booms) ? ParseBooms(booms) : null,
+        Story = r.TryGetProperty("story", out var story) ? story.GetInt64() : 0,
+        StoryHoldMs = r.TryGetProperty("storyHoldMs", out var storyHold) ? storyHold.GetInt32() : 0,
+        StoryThen = ParsePlots(r),
+    };
+
+    private static List<long> ParsePlots(JsonElement r)
+    {
+        List<long> plots = [];
+        if (r.TryGetProperty("storyThen", out var then))
+            foreach (var plot in then.EnumerateArray()) plots.Add(plot.GetInt64());
+        return plots;
+    }
+
+    private static Booms ParseBooms(JsonElement b) => new(b.GetProperty("npc").GetInt32(), b.GetProperty("skill").GetInt64(),
+        b.TryGetProperty("shooter", out var shooter) ? shooter.GetInt32() : 0,
+        b.TryGetProperty("shooterSkill", out var shooterSkill) ? shooterSkill.GetInt64() : 0,
+        b.TryGetProperty("persist", out var persist) && persist.GetBoolean(),
+        [.. b.GetProperty("shots").EnumerateArray().Select(v => new Boom(v.GetProperty("at").GetInt32(), v.GetProperty("point").GetInt64()))]);
 
     private static IReadOnlyList<StepTrigger> Triggers(JsonElement step, string field)
     {

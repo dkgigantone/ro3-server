@@ -450,8 +450,32 @@ public sealed partial class CombatService
             // The crosshair's ray (LC_TPSComponent._raycast) names its unit in targetsId; a shot past everything hits nothing.
             // The row's 3 m height range is not asked: the deck stands up to 20 m above the patrols it fires at.
             if (req.TargetId == 0 && req.TargetsId.Count > 0) req.TargetId = req.TargetsId[0];
-            if (FindMonster(s.WorldScene, req.TargetId) is not { } aimed || !CanHitMonster(s, aimed)) req.TargetId = 0;
-            req.TargetPos ??= origin.Clone();
+            _log.LogInformation("Cannon shot {Skill}: target {Target}, targets [{Targets}], point {Point}, face {Face}",
+                req.SkillId, req.TargetId, string.Join(',', req.TargetsId), req.TargetPos == null ? "none" : $"{req.TargetPos.X:0.0},{req.TargetPos.Y:0.0},{req.TargetPos.Z:0.0}", req.Face);
+            // The crosshair's own point is where the player sees the shot land; the aimed unit's feet can be far from it.
+            var crosshair = req.TargetPos?.Clone();
+            if (FindMonster(s.WorldScene, req.TargetId) is { } aimed && CanHitMonster(s, aimed))
+                // The shot flies to what it hit (a point at the caster's own feet drew no shot towards the ship).
+                req.TargetPos = aimed.Pos.Clone();
+            else
+            {
+                req.TargetId = 0;
+                // A shot past everything still flies along the line of fire.
+                if (req.TargetPos == null)
+                {
+                    double angle = req.Face * Math.PI / 180;
+                    req.TargetPos = new Vec3 { X = origin.X + (float)Math.Sin(angle) * 60, Y = origin.Y, Z = origin.Z + (float)Math.Cos(angle) * 60 };
+                }
+            }
+            if (req.TargetPos != null)
+            {
+                // A raw point at the caster's own feet is no aim (it drew no shot before): then the unit's position stands.
+                float cx = crosshair == null ? 0 : crosshair.X - origin.X, cz = crosshair == null ? 0 : crosshair.Z - origin.Z;
+                bool usable = crosshair != null && cx * cx + cz * cz > 25f;
+                // The shot's flight time: its damage lands when the fireball does (CombatService.Effects ResolveCastAsync).
+                int flight = CannonShot?.Invoke(s, (usable ? crosshair! : req.TargetPos).Clone()) ?? 0;
+                if (s.Role != null) _cannonFlight[s.Role.Id] = flight;
+            }
             return 0;
         }
         var monster = FindMonster(s.WorldScene, req.TargetId);

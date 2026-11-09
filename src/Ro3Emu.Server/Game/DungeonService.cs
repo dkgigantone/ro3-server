@@ -97,7 +97,18 @@ public sealed partial class DungeonService
         vehicles.ExitHeld = RideHolds;
         combat.GrantedSkill.Add(FiresCannon);
         combat.AimsFromSeat = FiresCannon;
+        combat.CannonShot = OnCannonShot;
+        gm.Register("chatline", "<chatConfigId> (test aid: sends a ChatConfig row to yourself as the airship script does)", ChatLineGmAsync);
+        gm.Register("boom", "[point=59] [npc=5300037] [skill=5353101] (test aid: plays an explosion at a scene-editor point, as the airship deck's)", BoomGmAsync);
+        gm.Register("plot", "<plotInterpretationId> (test aid: plays a PlotInterpretation story for you, as a scripted step's story does)", PlotGmAsync);
+        gm.Register("voice", "[on|off] (test aid: the airship script's voiced twin lines)", VoiceGmAsync);
+        gm.Register("shoot", "[metres=40] (test aid: one cannon shot from you along your facing)", ShootGmAsync);
+        gm.Register("shotfx", "<bulletNpc|0> [blastSkill[,skill..]|0] (test aid: what the airship cannon's shots fly and blast with)", ShotFxGmAsync);
+        gm.Register("boomfx", "<skill[,skill..]|off> (test aid: the skills the deck explosions play)", BoomFxGmAsync);
         gm.Register("actors", "[npcId | walk <x> <z> | use] (scripted scene test aid: the step's scene actors, jump beside one, arrive at x z as a walk would, or complete the step server-side)", ActorsGmAsync);
+        gm.Register("barrelslide", "on [camera=1005] [sideCm=50] [downCm=50] | off (TEST AID: puts you in the client slide with a camera row, to test the airship barrel phase)", BarrelSlideGmAsync);
+        gm.Register("burn", "<npc|0> [lifeMs] [impactNpc|0] (test aid: the burning-ground effect NPC left where cannon shots land)", BurnGmAsync);
+        gm.Register("barrelcam", "<camera|0> [pushCm|0] [sideCm] [downCm] (the airship barrel rounds' camera row and slip push; until restart)", BarrelCamGmAsync);
         WireRaidTrials(combat, gm);
         teams.MultiDungeonInfo = TeamDungeonInfo;
         combat.DamageAdjusters.Add((s, m, _, _, damage) => BondDamage(s, m, damage, incoming: false));
@@ -140,9 +151,16 @@ public sealed partial class DungeonService
         /// <summary>A step's own timers' generation: each step (and each new hide-and-seek game) starts a new one, so a
         /// stale timer does nothing.</summary>
         public int StepGeneration { get; set; }
+        /// <summary>The Evil Boss fight's huge fire (boss at 20%) and barrel phase have started.</summary>
+        public bool HugeFire { get; set; }
+        public bool Rolling { get; set; }
         /// <summary>The running step's <see cref="ReconstructedDungeons.ScriptedStep.HoldAfterMs"/> was started / is over.</summary>
         public bool StepHeld { get; set; }
         public bool StepHoldOver { get; set; }
+        /// <summary>When the running step began, and whether its HoldUntilMs floor is waiting / over.</summary>
+        public long StepStartMs { get; set; }
+        public bool StepUntilSet { get; set; }
+        public bool StepUntilOver { get; set; }
         /// <summary>A hide-and-seek step: the round being played (1-based) and the hiding places already searched in
         /// this game.</summary>
         public int SeekRound { get; set; }
@@ -176,6 +194,8 @@ public sealed partial class DungeonService
         public bool Spawning { get; set; }
         /// <summary>The current scripted step got one of its completing client events (DungeonService.Scripted).</summary>
         public bool StepDone { get; set; }
+        /// <summary>A story a completed step started and the advance that waits for its end (84011/84012).</summary>
+        public (long[] Plots, Func<Task> Go, long Since)? StoryWait { get; set; }
         /// <summary>The wave whose scripted step was completed, so its counter reads full and the next one's does not.</summary>
         public int GoalFullWave { get; set; } = -1;
         /// <summary>A Realm of the Gods raid waits in its preparation phase (DungeonService.RealmOfGods).</summary>
@@ -685,6 +705,22 @@ public sealed partial class DungeonService
     {
         if (a.Settled || a.Preparing || a.Spawning || a.Precounted.Count != 0 || a.Killed.Count != a.Spawned || a.Advancing) return;
         if (Step(a) != null && !a.StepDone) return;
+        // A scripted step's floor: the scene's lines run out before the next step comes (HoldUntilMs).
+        if (Step(a) is { HoldUntilMs: > 0 } floor && !a.StepUntilOver)
+        {
+            long left = (long)Paced(floor.HoldUntilMs).TotalMilliseconds - (MonsterService.NowMs - a.StepStartMs);
+            if (left > 0)
+            {
+                if (a.StepUntilSet) return; // the floor is running; its end advances
+                a.StepUntilSet = true;
+                _loop.ScheduleLegacy(TimeSpan.FromMilliseconds(left), () =>
+                {
+                    a.StepUntilOver = true;
+                    return a.Settled || a.Room.Closed ? Task.CompletedTask : AdvanceAsync(a);
+                }, "dungeon scripted step floor");
+                return;
+            }
+        }
         // A scripted step's hold: what it showed (a bubble being read, an enemy falling) is not cut by the next step or the
         // result. Only once per step, and not past the run's time limit.
         if (Step(a) is { HoldAfterMs: > 0 } step && !a.StepHoldOver && _loop.Now - a.StartedAt < TimeSpan.FromMilliseconds(a.Plan.DurationMs))

@@ -351,7 +351,7 @@ public sealed class DungeonCatalog(GameData data, WorldData worldData, MonsterSe
                     || CompanionUnit.Build(data, monsters, c.NpcId) == null)) return [];
             if (step.Story != 0 && data.Row("PlotInterpretation", step.Story) == null) return [];
             if (step.TeleportAfter != 0 && !map.Points.ContainsKey(step.TeleportAfter)) return [];
-            if (step.HoldAfterMs is < 0 or > 60000) return [];
+            if (step.HoldAfterMs is < 0 or > 60000 || step.HoldUntilMs is < 0 or > 120000) return [];
             // A ride needs its route, an actor that walks (a UnitConfig speed) and an actor interaction that completes the step.
             if (step.RideAfter != 0 && (!map.GuidePaths.ContainsKey(step.RideAfter)
                 || !step.Complete.Any(t => t.Kind is ReconstructedDungeons.TriggerKind.Interaction or ReconstructedDungeons.TriggerKind.Message)
@@ -376,6 +376,11 @@ public sealed class DungeonCatalog(GameData data, WorldData worldData, MonsterSe
             if (step.Shelter is { } shelter && (!step.Fight.Any(f => f.NpcId == shelter.Boss) || !step.Actors.Any(a => a.NpcId == shelter.Cover)
                     || data.Row("ChatConfig", shelter.Tip) == null || data.Row("SkillConfig", shelter.Skill) == null
                     || shelter.EveryMs <= shelter.WarnMs || shelter.WarnMs < 0 || shelter.Width <= 0 || shelter.Depth <= 0)) return [];
+            if (step.Rollers is { } rollers && (!step.Fight.Any(f => f.NpcId == rollers.Boss) || rollers.Npcs.Count == 0
+                    || rollers.Npcs.Count != rollers.Routes.Count || rollers.Npcs.Any(n => monsters.Template(n) == null)
+                    || rollers.Routes.Any(r => !map.PatrolPaths.TryGetValue(r, out var lane) || lane.Count < 2)
+                    || data.Row("SkillConfig", rollers.Skill) == null || rollers.EveryMs <= 0 || rollers.FirstMs < 0
+                    || rollers.Radius <= 0 || rollers.HitEveryMs <= 0 || rollers.BelowPct is < 0 or > 99 || rollers.Waves < 1 || rollers.WaveMs < 0 || (rollers.Tip != 0 && data.Row("ChatConfig", rollers.Tip) == null))) return [];
             if (step.React is { } react && !ReactionResolves(step, react)) return [];
             if (step.Cannon is { } cannon && (step.Fight.Count == 0 || data.Row("SkillConfig", cannon.Fire) == null
                     || !step.Actors.Any(a => Interactions(a.NpcId).Contains(cannon.Interaction)))) return [];
@@ -410,7 +415,9 @@ public sealed class DungeonCatalog(GameData data, WorldData worldData, MonsterSe
         bool Resolves(ReconstructedDungeons.Response? r) => r == null
             || (r.Say == 0 || Line(r.Say)) && (r.Buff == 0
                 || Shown(r.On) && Data.Config.BuffConfig.Get(data, r.Buff) is { BuffId: > 0 });
-        return Shown(react.Speaker) && react.Start.All(Line) && Resolves(react.Ignored) && Resolves(react.Complete);
+        // Speaker 0: no actor of the step speaks (a boss of its fight, say); the lines then carry no uid.
+        return (react.Speaker == 0 || Shown(react.Speaker)) && react.Start.All(Line) && Resolves(react.Ignored) && Resolves(react.Complete)
+            && (react.Timed ?? []).All(l => l.AtMs >= 0 && Line(l.Say) && (l.Speaker == 0 || Shown(l.Speaker)));
     }
 
     /// <summary>
@@ -498,6 +505,10 @@ public sealed class DungeonCatalog(GameData data, WorldData worldData, MonsterSe
 
     public MapPoint? ScenePoint(long scene, long point) =>
         worldData.Map(scene)?.Points.TryGetValue(point, out var p) == true ? p : null;
+
+    /// <summary>A scene-editor patrol (kPatrolList) of the scene, or null.</summary>
+    public IReadOnlyList<(float X, float Y, float Z)>? ScenePatrol(long scene, long patrol) =>
+        worldData.Map(scene)?.PatrolPaths.TryGetValue(patrol, out var path) == true ? path : null;
 
     /// <summary>The guide routes (m_kGuidePoints) of the scene's scene editor file.</summary>
     public IReadOnlyList<long> GuideRoutes(long scene) => worldData.Map(scene)?.GuideRoutes ?? [];

@@ -154,7 +154,12 @@
           "guides": { "routes": [], "why": "no route: the fight is where the player arrives; both routes of the scene lead on from here (play-tested: the whole chain was shown at once)" },
           "fight": [
             { "point": 21, "npc": 5300006, "why": "label 蚁后刷怪点 'ant queen spawn point' and stage 1 'Defeat Maya'; story Maya template 5300006 (L30)" }
-          ]
+          ],
+          "react": {
+            "speaker": 0,
+            "start": [4314477],
+            "why": "inferred: Maya's first voice line (VO_S1Five_Boss_Maya_01, a voice-only row) as the fight opens; her other lines (02-11) have no known trigger"
+          }
         },
         {
           "quest": 2,
@@ -214,7 +219,11 @@
         {
           "quest": 1,
           "stage": "Aboard the Airship: chitchat",
-          "after": { "hold": 13000, "why": "inferred: the bubble that completes the step can be the longest (4 lines, 12 to 22 words each at BubblePerWordTime 2: about 6 to 13 s); the crew stays while it is read, and the others can still be talked to meanwhile" },
+          "after": {
+            "hold": 13000,
+            "holdUntil": 40000,
+            "why": "inferred: the bubble that completes the step can be the longest (4 lines, 12 to 22 words each at BubblePerWordTime 2: about 6 to 13 s); the crew stays while it is read, and the others can still be talked to meanwhile. holdUntil: the cannons appear after the opening script in the clips (the script ends about 39 s in), whatever the player did with the chitchat"
+          },
           "actors": [
             { "npc": 5300031, "point": 54, "buffs": [5364501], "why": "Bobo at 波波NPC; group 53645 opens his bubble" },
             { "npc": 5300032, "point": 55, "buffs": [5364501], "why": "the captain at 船长NPC" },
@@ -227,7 +236,64 @@
             { "interaction": 5300032, "why": "the captain's bubble" },
             { "interaction": 5300033, "why": "Wule's bubble" },
             { "interaction": 5300034, "why": "Boya's bubble" }
-          ]
+          ],
+          "react": {
+            "speaker": 5300032,
+            "start": [],
+            "timed": [
+              {
+                "at": 8000,
+                "say": 5300540,
+                "speaker": 0
+              },
+              {
+                "at": 14000,
+                "say": 5300541,
+                "speaker": 0
+              },
+              {
+                "at": 20000,
+                "say": 5300550,
+                "speaker": 0
+              },
+              {
+                "at": 24000,
+                "say": 5300551,
+                "speaker": 0
+              },
+              {
+                "at": 28000,
+                "say": 5300552,
+                "speaker": 0
+              },
+              {
+                "at": 34000,
+                "say": 5300553,
+                "speaker": 0
+              }
+            ],
+            "why": "measured from the original clip: the portrait-box script (ChatConfig 5300540/541/550-553, type 7, speaker names in the text) at about 8, 14, 20, 24, 28 and 34 s after entering"
+          },
+          "booms": {
+            "npc": 5300037,
+            "skill": 5353101,
+            "persist": true,
+            "shots": [
+              {
+                "at": 16000,
+                "point": 59
+              },
+              {
+                "at": 20000,
+                "point": 60
+              },
+              {
+                "at": 22500,
+                "point": 31
+              }
+            ],
+            "why": "inferred: the clip shows blast marks on the deck at about 16-22 s (scene editor points 59/60 'enemy cannon effect', 31 'cannon effect marker'; invisible NPC 5300037, skill 5353101)"
+          }
         },
         {
           "quest": 2,
@@ -260,6 +326,93 @@
            "interaction": 5300006,
            "fire": 5353001,
            "why": "'Board the Cannon' seats the player (GameplayStatusConfig 12, type 10); GamePlayStatusExtraConfig[12] gives it camera 19, the crosshair and the buttons 27 (fire, skill 5353001) and 28 (leave)"
+          },
+          "react": {
+            "speaker": 5300022,
+            "start": [],
+            "timed": [
+              {
+                "at": 1000,
+                "say": 5300554,
+                "speaker": 0
+              },
+              {
+                "at": 7000,
+                "say": 5300555,
+                "speaker": 0
+              }
+            ],
+            "why": "inferred order of the script rows 5300554/555 (Eden Group Leader 'operate the Turret', Captain 'aim before you fire')"
+          },
+          "booms": {
+            "npc": 5300037,
+            "skill": 5353101,
+            "shooter": 5300015,
+            "shooterSkill": 5353201,
+            "persist": false,
+            "shots": [
+              {
+                "at": 4000,
+                "point": 59
+              },
+              {
+                "at": 8500,
+                "point": 60
+              },
+              {
+                "at": 13000,
+                "point": 31
+              },
+              {
+                "at": 17500,
+                "point": 59
+              },
+              {
+                "at": 22000,
+                "point": 60
+              },
+              {
+                "at": 26500,
+                "point": 31
+              },
+              {
+                "at": 31000,
+                "point": 59
+              },
+              {
+                "at": 35500,
+                "point": 60
+              },
+              {
+                "at": 40000,
+                "point": 31
+              },
+              {
+                "at": 44500,
+                "point": 59
+              },
+              {
+                "at": 49000,
+                "point": 60
+              },
+              {
+                "at": 53500,
+                "point": 31
+              },
+              {
+                "at": 58000,
+                "point": 59
+              },
+              {
+                "at": 62500,
+                "point": 60
+              },
+              {
+                "at": 67000,
+                "point": 31
+              }
+            ],
+            "why": "inferred: the clip shows the enemy ships firing at our deck while the player shoots; the lead enemy ship plays its skill 5353201 and a blast lands on the deck points 59/60/31 (stops when the step is done)"
           }
         },
         {
@@ -270,7 +423,24 @@
             { "point": 44, "npc": 5300042, "why": "label 冲锋怪-1 'charging monster'; the client has exactly four story 'Evil Warrior' templates 5300042-45 for the four charge points" },
             { "point": 45, "npc": 5300043, "why": "冲锋怪-2" },
             { "point": 48, "npc": 5300046, "why": "label 弓箭-1 'archer'; exactly five story 'Evil Archer' templates 5300046-50 for the five archer points" }
-          ]
+          ],
+          "react": {
+            "speaker": 0,
+            "start": [],
+            "timed": [
+              {
+                "at": 1000,
+                "say": 5300556,
+                "speaker": 0
+              },
+              {
+                "at": 6500,
+                "say": 5300557,
+                "speaker": 0
+              }
+            ],
+            "why": "inferred: script rows 5300556/557 as the ships fall and the boarders come"
+          }
         },
         {
           "quest": 3,
@@ -280,7 +450,19 @@
             { "point": 46, "npc": 5300044, "why": "冲锋怪-3" },
             { "point": 49, "npc": 5300047, "why": "弓箭-2" },
             { "point": 50, "npc": 5300048, "why": "弓箭-3" }
-          ]
+          ],
+          "react": {
+            "speaker": 0,
+            "start": [],
+            "timed": [
+              {
+                "at": 500,
+                "say": 5300558,
+                "speaker": 0
+              }
+            ],
+            "why": "inferred: the Air Pirate Boss's 'Charge!' (5300558)"
+          }
         },
         {
           "quest": 3,
@@ -290,20 +472,67 @@
             { "point": 47, "npc": 5300045, "why": "冲锋怪-4" },
             { "point": 51, "npc": 5300049, "why": "弓箭-4" },
             { "point": 52, "npc": 5300050, "why": "弓箭-5" }
-          ]
+          ],
+          "react": {
+            "speaker": 0,
+            "start": [],
+            "timed": [
+              {
+                "at": 500,
+                "say": 5300559,
+                "speaker": 0
+              },
+              {
+                "at": 6000,
+                "say": 5300560,
+                "speaker": 0
+              }
+            ],
+            "why": "inferred: Wuller (5300559) and the pirate lackey (5300560)"
+          }
         },
         {
           "quest": 4,
           "stage": "Defeat the Evil Boss",
+          "react": { "speaker": 0, "start": [], "timed": [ { "at": 500, "say": 5300561, "speaker": 0 } ], "why": "the Air Pirate Boss (ChatConfig 5300561, voiced twin 4380042 'Don't... celebrate just yet') as the boss fight starts: inferred position" },
           "after": { "hold": 3000, "why": "inferred: the Evil Boss falls before the crew comes out" },
           "fight": [
             { "point": 22, "npc": 5300018, "why": "stage 4 'Defeat the Evil Boss'; story template 5300018 'Evil Boss' (L25) at the first generic spawn point" }
-          ]
+          ],
+          "rollers": {
+            "boss": 5300018,
+            "npcs": [
+              5300020,
+              5300023,
+              5300024,
+              5300025
+            ],
+            "routes": [
+              69,
+              70,
+              71,
+              72
+            ],
+            "skill": 5352901,
+            "firstMs": 3000,
+            "everyMs": 15000,
+            "belowPct": 50,
+            "waves": 2,
+            "waveMs": 1500,
+            "radius": 1.8,
+            "hitEveryMs": 2000,
+            "why": "inferred: during the Evil Boss fight the four barrel NPCs (unit 5300013) roll the scene editor lane patrols 69-72 (barrel start points 32-35); the hit is barrel 5300020's skill 5352901 (range 3 m); single phase once the boss is at 50% health or below: 2 waves of the 4 barrels (8 in all) 1.8 s apart, about 8 s as in the clip; firstMs/everyMs are unused in this mode; timings, radius and lane pairing are guesses; the tip is the Air Pirate Boss's 'Don't celebrate just yet' (5300561), sent once when the phase starts",
+            "tip": 5300561
+          }
         },
         {
           "quest": 5,
           "stage": "The Battle temporarily subsides: take a look around",
-          "after": { "hold": 1000, "why": "inferred: the short bubble that completes the step (0.3 to 0.8 s) is read before the captain steps forward" },
+          "after": {
+            "hold": 1000,
+            "holdUntil": 17000,
+            "why": "inferred: the short bubble that completes the step (0.3 to 0.8 s) is read before the captain steps forward; holdUntil: the three lines are read before the captain steps forward"
+          },
           "actors": [
             { "npc": 5300061, "point": 54, "why": "Bobo" },
             { "npc": 5300062, "point": 55, "why": "the captain" },
@@ -317,18 +546,90 @@
             { "interaction": 5300050, "why": "a post-battle bubble" },
             { "interaction": 5300051, "why": "a post-battle bubble" },
             { "interaction": 5300052, "why": "a post-battle bubble" }
-          ]
+          ],
+          "react": {
+            "speaker": 0,
+            "start": [],
+            "timed": [
+              {
+                "at": 500,
+                "say": 5300562,
+                "speaker": 0
+              },
+              {
+                "at": 6000,
+                "say": 5300563,
+                "speaker": 0
+              },
+              {
+                "at": 11500,
+                "say": 5300564,
+                "speaker": 0
+              }
+            ],
+            "why": "inferred: after the fight the captain (5300562), the Eden Group Leader (5300563) and Boya (5300564) speak"
+          }
         },
         {
           "quest": 6,
           "stage": "Check the Captain's injuries: talk to the captain",
-          "after": { "hold": 4500, "why": "inferred: the captain's closing line 530003804 (22 words, about 4 s) is spoken before the result" },
+          "after": {
+            "hold": 0,
+            "why": "the captain's closing line is the reaction's own hold; the original's video follows (not built)"
+          },
           "actors": [
             { "npc": 5300038, "point": 55, "why": "the injured captain at 船长NPC (the quest's action names point 55 and dialogue 530003802)" }
           ],
           "complete": [
             { "message": 5300039, "why": "the dialogue option 'Can I really do it?' triggers interaction 5300039, which sends dungeon message 5300039" }
-          ]
+          ],
+          "react": {
+            "speaker": 0,
+            "start": [],
+            "timed": [
+              {
+                "at": 500,
+                "say": 5300565,
+                "speaker": 0
+              },
+              {
+                "at": 6000,
+                "say": 5300566,
+                "speaker": 0
+              }
+            ],
+            "complete": {
+              "say": 5300568,
+              "delayMs": 5000,
+              "story": 130161,
+              "storyHoldMs": 120000,
+              "storyThen": [130162, 130163],
+              "booms": {
+                "npc": 5300037,
+                "skill": 5353101,
+                "persist": true,
+                "shots": [
+                  {
+                    "at": 0,
+                    "point": 59
+                  },
+                  {
+                    "at": 1200,
+                    "point": 60
+                  },
+                  {
+                    "at": 2400,
+                    "point": 31
+                  },
+                  {
+                    "at": 3600,
+                    "point": 59
+                  }
+                ]
+              }
+            },
+            "why": "the captain calls the player over (5300565), Bobo notices the wound (5300566); after the talk four explosions, then 'reinforcements' (5300568) five seconds later (the clip also shakes the screen and plays a video, neither built)"
+          }
         }
       ]
     },
@@ -553,7 +854,12 @@
           "fight": [
             { "point": 20, "npc": 5300010, "why": "stage 'Mysterious Space / Defeat Pharaoh'; 5300010 is the client's story Pharaoh (L45)" }
           ],
-          "shelter": { "boss": 5300010, "cover": 5300011, "tip": 4370002, "skill": 5340301, "everyMs": 20000, "warnMs": 4000, "width": 1.5, "depth": 6, "why": "hide behind the Pyramid (inferred from the raid's tip)" }
+          "shelter": { "boss": 5300010, "cover": 5300011, "tip": 4370002, "skill": 5340301, "everyMs": 20000, "warnMs": 4000, "width": 1.5, "depth": 6, "why": "hide behind the Pyramid (inferred from the raid's tip)" },
+          "react": {
+            "speaker": 0,
+            "start": [4370006],
+            "why": "inferred: Pharaoh's first voice line (VO_S1Five_Boss_Pharaoh_01, voice-only) as the fight opens; 02-12 have no known trigger"
+          }
         }
       ]
     },
@@ -691,7 +997,12 @@
             { "point": 107, "radius": 3, "why": "group 27, west (59.5, 72.7)" },
             { "point": 108, "radius": 3, "why": "group 27, west (48.8, 72.7)" }
           ],
-          "seek": { "rounds": 2, "searchedRadius": 8, "opening": [5310011, 5310012, 5310013], "round": 5310005, "countdown": 5310010, "longer": 5310006, "won": 5310007, "found": 5310014, "why": "the round structure built from the game's ChatConfig lines (inferred)" }
+          "seek": { "rounds": 2, "searchedRadius": 8, "opening": [5310011, 5310012, 5310013], "round": 5310005, "countdown": 5310010, "longer": 5310006, "won": 5310007, "found": 5310014, "why": "the round structure built from the game's ChatConfig lines (inferred)" },
+          "react": {
+            "speaker": 400097,
+            "start": [4314488],
+            "why": "inferred: Moonlight Flower's first voice line (VO_S1Five_Boss_MoonLight_01, voice-only) as the game opens; 02-13 have no known trigger"
+          }
         }
       ]
     },
@@ -720,7 +1031,12 @@
           "stage": "Defeat Baphomet",
           "fight": [
             { "point": 20, "npc": 5300003, "why": "story Baphomet (L40)" }
-          ]
+          ],
+          "react": {
+            "speaker": 0,
+            "start": [4314479],
+            "why": "inferred: Baphomet's first voice line (VO_S1Five_Boss_Baphomet_01, voice-only) as the fight opens; 02-09 have no known trigger"
+          }
         }
       ]
     }
