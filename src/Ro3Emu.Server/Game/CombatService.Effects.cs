@@ -42,6 +42,9 @@ public sealed partial class CombatService
 {
     private long _skillObjectIds = 0x600000000000L;
 
+    /// <summary>The flight time (ms) of the gunner's last airship cannon shot (ValidateTarget's seat branch), by role id.</summary>
+    private readonly Dictionary<long, int> _cannonFlight = [];
+
     private async Task ResolveCastAsync(GameSession s, ActiveSkillCast action)
     {
         var row = action.Row;
@@ -95,6 +98,17 @@ public sealed partial class CombatService
         if (Script(row) == "BombSuicide1") { await EnergyReleaseAsync(s, action); return; }
         if (Script(row) == "AxeLeapAttack") { await HighEnergyTakeOffAsync(s, action); return; }
         if (Script(row) == "huixuanshizizhan") { await ApplyEffectsAsync(s, WithRow(action, await CrossRipperRowAsync(s, row)), action.Request.TargetPos ?? action.Origin); return; }
+        if (AimsFromSeat?.Invoke(s, action.Request.SkillId) == true && s.Role != null && _cannonFlight.TryGetValue(s.Role.Id, out int flightMs) && flightMs > 0)
+        {
+            // An airship cannon's damage lands when its fireball reaches the target, not when it leaves the barrel.
+            long scene = action.WorldScene, generation = s.SceneGeneration;
+            ScheduleRuntime(scene, TimeSpan.FromMilliseconds(flightMs), async () =>
+            {
+                if (s.Role == null || s.Dead || s.SceneLoading || s.WorldScene != scene || s.SceneGeneration != generation) return;
+                await ApplyEffectsAsync(s, action, action.Request.TargetPos ?? action.Origin);
+            });
+            return;
+        }
         await ApplyEffectsAsync(s, action, action.Request.TargetPos ?? action.Origin);
     }
 

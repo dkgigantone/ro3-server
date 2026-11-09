@@ -298,6 +298,8 @@ public sealed partial class CombatService : IGameTicker
     public List<Func<GameSession, int, bool>> GrantedSkill { get; } = [];
     /// <summary>The player fires this skill from a seat with a crosshair (DungeonService.Cannon): the client names what it aims at.</summary>
     public Func<GameSession, int, bool>? AimsFromSeat { get; set; }
+    /// <summary>A seat's shot was aimed at this point (DungeonService draws the airship cannon's shot flying there).</summary>
+    public Func<GameSession, Vec3, int>? CannonShot { get; set; }
     /// <summary>World-core owns the dead player's explicit accept/decline invitation.</summary>
     public Func<GameSession, GameSession, JsonElement, Task>? ReviveOffer { get; set; }
     public Func<GameSession, int>? ReviveCheck { get; set; }

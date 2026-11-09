@@ -21,6 +21,8 @@ public sealed partial class DungeonService
             StepLater(a, generation, at, () => SayAsync(a, react.Speaker, chat));
             at += LineMs(chat);
         }
+        foreach (var line in react.Timed ?? [])
+            StepLater(a, generation, line.AtMs, () => SayAsync(a, line.Speaker, line.Say), whileFighting: true);
     }
 
     /// <summary>
@@ -34,9 +36,41 @@ public sealed partial class DungeonService
         if (response.Buff != 0 && used != null
             && a.SceneActors.FirstOrDefault(u => u.NpcId == response.On && u.Point == used.Point) is { } target)
             await ReplayBuffAsync(target, response.Buff);
-        if (response.Say == 0) return 0;
-        await SayAsync(a, react.Speaker, response.Say);
-        return LineMs(response.Say);
+        if (response.Booms is { } booms) StartBooms(a, a.StepGeneration, booms, persist: true);
+        int hold = 0;
+        if (response.Say != 0)
+        {
+            if (response.DelayMs > 0)
+            {
+                // The step is already done when a completing reaction answers, so the timer must not wait for it; the
+                // generation still ends it if the next step starts first.
+                StepLater(a, a.StepGeneration, response.DelayMs, () => SayAsync(a, react.Speaker, response.Say), whileFighting: true);
+                hold = response.DelayMs + LineMs(response.Say);
+            }
+            else
+            {
+                await SayAsync(a, react.Speaker, response.Say);
+                hold = LineMs(response.Say);
+            }
+        }
+        if (response.Story != 0)
+        {
+            // The video follows the line; the step holds for it (inferred length).
+            StepLater(a, a.StepGeneration, Math.Max(1, hold), () => PlayStoryAsync(a, response.Story), whileFighting: true);
+            hold = Math.Max(1, hold) + Math.Max(0, response.StoryHoldMs);
+        }
+        return hold;
+    }
+
+    /// <summary>Plays a PlotInterpretation story on the clients once (the var-change event of a step's Story).</summary>
+    private async Task PlayStoryAsync(Attempt a, long story)
+    {
+        if (a.Settled || a.Room.Closed) return;
+        await BroadcastAsync(a, Event, new DungeonEventNotify
+        {
+            DungeonEntry = a.Plan.SceneEntry, EventType = (DungeonEventType)4,
+            StageNum = a.Wave + 1, LevelNum = 1, Vars = { new DungeonVar { VarId = StoryVar, Vi64 = { story } } },
+        });
     }
 
     /// <summary>Puts the effect on again even when the actor already has it, so its start sound and effects play again.</summary>
@@ -47,8 +81,14 @@ public sealed partial class DungeonService
         await SetActorBuffsAsync(target, [.. others, buff]);
     }
 
-    private Task SayAsync(Attempt a, int speaker, int chat) => BroadcastAsync(a, SystemBroadcast, new SystemBoardCastMsgNtf
-    { Source = MsgSource.Npc, ChatId = chat, PlayerId = a.SceneActors.FirstOrDefault(u => u.NpcId == speaker)?.Uid ?? 0 });
+    private async Task SayAsync(Attempt a, int speaker, int chat)
+    {
+        long who = a.SceneActors.FirstOrDefault(u => u.NpcId == speaker)?.Uid ?? 0;
+        await BroadcastAsync(a, SystemBroadcast, new SystemBoardCastMsgNtf { Source = MsgSource.Npc, ChatId = chat, PlayerId = who });
+        // The portrait rows carry no sound (ChatConfig _iAudio is empty); the older voiced rows say the same lines.
+        if (_voiceOn && VoiceTwins.TryGetValue(chat, out int voiced))
+            await BroadcastAsync(a, SystemBroadcast, new SystemBoardCastMsgNtf { Source = MsgSource.Npc, ChatId = voiced, PlayerId = who });
+    }
 
     private int LineMs(int chat) => _data.Row("ChatConfig", chat) is { } row ? (int)new ChatConfig(row).Time : 0;
 

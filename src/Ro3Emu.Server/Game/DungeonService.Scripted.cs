@@ -85,6 +85,8 @@ public sealed partial class DungeonService
     {
         a.StepSeen.Clear();
         a.StepHeld = a.StepHoldOver = false;
+        a.StepStartMs = MonsterService.NowMs;
+        a.StepUntilSet = a.StepUntilOver = false;
         // Whoever still sits on what the last step showed gets off before it goes.
         if (a.Riders.Count > 0) await PutDownRidersAsync(a);
         // A fight-only step has no client event to wait for: its kills complete it.
@@ -98,7 +100,9 @@ public sealed partial class DungeonService
         a.StepGeneration++;
         if (step.Seek is { } seek) StartSeek(a, seek);
         if (step.Shelter is { } shelter) StartShelter(a, shelter);
+        if (step.Rollers is { } rollers) StartRollers(a, rollers);
         if (step.React is { } react) StartReaction(a, react);
+        if (step.Booms is { } booms) StartBooms(a, a.StepGeneration, booms);
         if (step.Slide is { } slide) await StartSlideAsync(a, slide);
         await ShowStepGuideWaysAsync(a);
         if (step.Story != 0 && !a.Settled && !a.Room.Closed)
@@ -226,8 +230,22 @@ public sealed partial class DungeonService
     /// both at a story's end (its plot's actions 601 and 150, LC_CutSceneManager._doEndAction), also when it is skipped;
     /// the first one completes the step, the second is ignored.
     /// </summary>
-    public Task PlotEndedAsync(GameSession s, long plotId) =>
-        Active(s) is { } a && Step(a) != null ? StepEventAsync(a, s, [(Kind.Plot, plotId)]) : Task.CompletedTask;
+    public async Task PlotEndedAsync(GameSession s, long plotId)
+    {
+        if (Active(s) is not { } a) return;
+        // The story a finished step started: its end (or a skip) moves on at once instead of after the long hold.
+        if (a.StoryWait is { } wait)
+        {
+            bool ends = Array.IndexOf(wait.Plots, plotId) >= 0;
+            _log.LogInformation("Scripted scene {Scene}: plot {Plot} ended {Ms} ms into the story hold; {Action}", a.Plan.SceneEntry, plotId,
+                MonsterService.NowMs - wait.Since, ends ? "moving on" : "still waiting for " + string.Join('/', wait.Plots));
+            if (!ends) return;
+            a.StoryWait = null;
+            await wait.Go();
+            return;
+        }
+        if (Step(a) != null) await StepEventAsync(a, s, [(Kind.Plot, plotId)]);
+    }
 
     /// <summary>
     /// GM test aid !actors [npcId]: the current step, what completes it, and its scene actors with their interactions,
@@ -408,7 +426,19 @@ public sealed partial class DungeonService
             // completed the step (a walk, an interaction, a plot end) reserves only what its own route needs. A completing
             // reaction's line is read first (inferred).
             if (hold > 0)
-                _loop.ScheduleLegacy(Paced(hold), () => a.Room.Closed ? Task.CompletedTask : AdvanceAsync(a), "dungeon scripted step");
+            {
+                // The hold is a cap when the line starts a story: the client's plot end moves on as soon as it comes.
+                int fired = 0;
+                Task Go() => a.Room.Closed || Interlocked.Exchange(ref fired, 1) != 0 ? Task.CompletedTask : AdvanceAsync(a);
+                if (step.React?.Complete is { Story: not 0 } told)
+                {
+                    long[] plots = [told.Story];
+                    if (told.StoryThen.Count > 0) plots = [.. told.StoryThen];
+                    a.StoryWait = (plots, () => { _loop.PostLegacy(Go, "dungeon story end"); return Task.CompletedTask; }, MonsterService.NowMs);
+                    _log.LogInformation("Scripted scene {Scene}: story {Story} holds the scene until plot {Plots} ends (cap {Ms} ms)", a.Plan.SceneEntry, told.Story, string.Join('/', plots), (long)Paced(hold).TotalMilliseconds);
+                }
+                _loop.ScheduleLegacy(Paced(hold), Go, "dungeon scripted step");
+            }
             else _loop.PostLegacy(() => AdvanceAsync(a), "dungeon scripted step");
         }
         // A step with a ride first walks it; the teleport and the next step follow its arrival.
