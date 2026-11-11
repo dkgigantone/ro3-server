@@ -259,8 +259,8 @@ public sealed partial class StallsService
                 };
                 // The client decodes mail 1029's content_params as this StallsRecord (a LanguageData payload throws
                 // "itemEntryID: varint expected, got bytes" in ParseMailInfo and the whole mail never shows).
-                if (net > 0) tx.DeliverMail(row.Owner, (int)Param("StallsSellItemMailId", 1029),
-                    currency: new Dictionary<int, long> { [offer.Currency] = net }, rawContentParams: record.ToByteArray());
+                if (net > 0) tx.DeliverMailRaw(row.Owner, (int)Param("StallsSellItemMailId", 1029), record.ToByteArray(),
+                    new Dictionary<int, long> { [offer.Currency] = net });
                 row.Gains[offer.Currency] = checked(row.Gains.GetValueOrDefault(offer.Currency) + net);
                 meta.WeekMoney.Value = checked(meta.WeekMoney.Value + gross);
                 row.TaxRate = TaxRate(meta.WeekMoney.Value);
