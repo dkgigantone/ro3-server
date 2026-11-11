@@ -12,7 +12,6 @@ A private, personal Ragnarok Online 3 server.
 - [Repository layout and architecture](docs/development.md#repository-layout)
 - [Tests and load tests](docs/development.md#tests)
 - [System notes](docs/systems) and [client research](docs/research)
-- [Fix list](FIXES.md)
 
 ---
 
