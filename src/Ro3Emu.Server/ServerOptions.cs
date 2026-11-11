@@ -441,10 +441,10 @@ public sealed class UpdateOptions
 {
     /// <summary>Ask GitHub for new releases: when the page asks and every <see cref="CheckHours"/>. Off: no request leaves
     /// the server and the page shows the installed version only.</summary>
-    public bool Check { get; set; } = true;
+    public bool Check { get; set; }
 
-    /// <summary>The GitHub repository whose releases are offered (owner/name).</summary>
-    public string Repository { get; set; } = "aethai/ro3emu-server";
+    /// <summary>The GitHub repository whose releases are offered (owner/name). Empty by default: set it, and turn Check on, to use the update page.</summary>
+    public string Repository { get; set; } = "";
 
     /// <summary>Hours between two checks in the background; at least 1.</summary>
     public double CheckHours { get; set; } = 6;

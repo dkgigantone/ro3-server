@@ -13,12 +13,12 @@ namespace Ro3Emu.Launcher;
 /// </summary>
 public sealed partial class GitHubReleases(HttpClient http, string cacheFile)
 {
-    public const string Repository = "aethai/ro3emu-server";
+    public const string Repository = "";
     public const string WindowsAsset = "RO3Emu-win-x64.zip";
 
     /// <summary>The releases list; RO3EMU_RELEASES_URL replaces it, to try the app update against a local copy.</summary>
     static string ReleasesUrl => Environment.GetEnvironmentVariable("RO3EMU_RELEASES_URL") is { Length: > 0 } url
-        ? url : $"https://api.github.com/repos/{Repository}/releases?per_page=8";
+        ? url : Repository.Length == 0 ? "" : $"https://api.github.com/repos/{Repository}/releases?per_page=8";
 
     public sealed record Release(string Tag, string Name, DateTimeOffset Published, string Body, string Url, Asset? Windows)
     {
@@ -31,6 +31,7 @@ public sealed partial class GitHubReleases(HttpClient http, string cacheFile)
     /// <summary>The newest releases (drafts and pre-releases left out), from GitHub, else from the last start's copy.</summary>
     public async Task<List<Release>> LoadAsync(CancellationToken ct)
     {
+        if (ReleasesUrl.Length == 0) return [];
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, ReleasesUrl);

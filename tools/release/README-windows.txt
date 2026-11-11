@@ -43,8 +43,8 @@ What it changes on your PC
     RO3Emu: it undoes the patch (RO3Emu.exe patches again on the next start).
 
 If something goes wrong
-  RO3Emu writes RO3Emu-diagnostics.zip and tells you where it is. Open an issue at
-  https://github.com/aethai/ro3emu-server/issues and attach that file.
+  RO3Emu writes RO3Emu-diagnostics.zip and tells you where it is. Keep that file
+  when you ask for help.
 
 RO3Emu does not include or host any game file. It is not affiliated with Gravity or
 any publisher of Ragnarok Online.
