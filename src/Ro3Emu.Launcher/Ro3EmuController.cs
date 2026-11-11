@@ -16,8 +16,6 @@ namespace Ro3Emu.Launcher;
 /// </summary>
 public sealed class Ro3EmuController : ILauncherController, IUiSink
 {
-    public const string GitHubUrl = "https://github.com/aethai/ro3emu-server";
-    public const string DiscordUrl = "https://discord.gg/vVkcvMFKy3";
 
     readonly string _exePath;
     readonly Action<object> _post;
@@ -160,7 +158,7 @@ public sealed class Ro3EmuController : ILauncherController, IUiSink
             dir = client ?? "",
             launcher = AppVersion,
             serverName = "RO3Emu",
-            links = new object[] { new { label = "GitHub", url = GitHubUrl, icon = "code" }, new { label = "Discord", url = DiscordUrl, icon = "chat" } },
+            links = Array.Empty<object>(),
             canUninstall = false,
             gameRelease = client is null ? null : ClientLocator.InstalledRelease(client),
             lanAddress = Flows.LanAddress(),

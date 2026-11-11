@@ -223,7 +223,7 @@ game, loading or waiting for a reconnect, as the HTTP character deletion is. Eve
 **Server control > Updates** (Admins) keeps the server on the newest release. Nothing installs by itself: the page
 checks, downloads and checks again, and an Admin plans the install like a restart.
 
-- **Version.** The running version and commit against the releases of `aethai/ro3emu-server` on GitHub: the latest
+- **Version.** The running version and commit against the releases of the configured GitHub repository (`Ro3Emu:Updates:Repository`): the latest
   one, every newer one with its date, its package size and its release notes (shown as plain text; the newest five
   open, the rest behind *Show older releases*). The server asks GitHub's API without a token (60 requests an hour per
   address) when *Check now* is pressed, at most once a minute, and every 6 hours in the background while the panel is
@@ -286,8 +286,8 @@ prints the `--restore-backup` command for the pre-update database backup, which 
 
 | Option | Default | What |
 |---|---|---|
-| `Ro3Emu:Updates:Check` | `true` | ask GitHub for releases; `false`: no request leaves the server and the page shows the installed version only |
-| `Ro3Emu:Updates:Repository` | `aethai/ro3emu-server` | the repository whose releases are offered |
+| `Ro3Emu:Updates:Check` | `false` | ask GitHub for releases; `false`: no request leaves the server and the page shows the installed version only |
+| `Ro3Emu:Updates:Repository` | empty | the repository whose releases are offered (owner/name); needed together with `Check` |
 | `Ro3Emu:Updates:CheckHours` | `6` | hours between background checks (at least 1) |
 | `Ro3Emu:Updates:Hosting` | `auto` | `systemd`, `service`, `docker`, `app` or `manual` instead of what the server finds |
 | `Ro3Emu:Updates:InstallDir` | found | the release folder, when the server runs from somewhere else |

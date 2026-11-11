@@ -789,7 +789,7 @@
     var m = { dir: "D:\\Games\\Ragnarok3\\ROO_PC", running: false, kind: null, phase: "checking" };
     function settings() {
       return { type: "settings", mode: "ro3emu", dir: mode === "nogame" ? "" : m.dir, launcher: "1.0.20", serverName: "RO3Emu",
-        links: [{ label: "GitHub", url: "https://github.com/aethai/ro3emu-server", icon: "code" }, { label: "Discord", url: "https://discord.gg/vVkcvMFKy3", icon: "chat" }],
+        links: [],
         canUninstall: false, lanAddress: "192.168.1.20", serverRunning: m.running, serverKind: m.kind, dataDir: "D:\\RO3Emu\\data",
         panel: panel() };
     }
@@ -810,10 +810,10 @@
         : { type: "server", online: false, label: "Your server is stopped" });
     }
     var NEWS = { type: "news", items: [
-      { tag: "Release", date: "2026-10-29", url: "https://github.com/aethai/ro3emu-server/releases", title: "v1.0.20: War machines and bolt effects",
+      { tag: "Release", date: "2026-10-29", url: "#", title: "v1.0.20: War machines and bolt effects",
         text: "The war warehouse and the Tactics panel, cannons you can reserve and build in the siege, and bolt skills show their projectiles again." },
-      { tag: "Release", date: "2026-10-28", url: "https://github.com/aethai/ro3emu-server/releases", title: "v1.0.19: Commander tools" },
-      { tag: "Release", date: "2026-10-24", url: "https://github.com/aethai/ro3emu-server/releases", title: "v1.0.18: Survivor Battle" }] };
+      { tag: "Release", date: "2026-10-28", url: "#", title: "v1.0.19: Commander tools" },
+      { tag: "Release", date: "2026-10-24", url: "#", title: "v1.0.18: Survivor Battle" }] };
     function ready() { state("ready", "Game 2026.10.25.1. " + (m.running ? "Your server is running." : "Play starts your own server on this PC.")); }
     function exportThenPlay(kind) {
       var stages = [["Reading the game scripts", 4120], ["Exporting the game tables", 1494], ["Exporting the walk maps", 212]], i = 0, done = 0;

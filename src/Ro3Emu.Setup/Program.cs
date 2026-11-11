@@ -9,8 +9,6 @@ namespace Ro3Emu.Setup;
 /// </summary>
 internal static class Program
 {
-    public const string IssuesUrl = "https://github.com/aethai/ro3emu-server/issues";
-
     public const string Usage = """
         RO3Emu.exe [command] [options]
 
@@ -134,7 +132,6 @@ internal static class Program
         {
             var zip = DiagnosticsZip.Write(Flows.KnownClient(options));
             Ui.Info($"Details are in {zip}.");
-            Ui.Info($"If you need help, open an issue at {IssuesUrl} and attach that file.");
             Ui.Reveal(zip);
         }
         catch (Exception e) { SetupLog.Write("diagnostics: " + e); }

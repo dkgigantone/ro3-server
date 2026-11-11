@@ -525,7 +525,6 @@ internal static class Flows
     {
         var zip = DiagnosticsZip.Write(KnownClient(options));
         Ui.Ok($"Wrote {zip}");
-        Ui.Info($"Attach it to an issue at {Program.IssuesUrl}.");
         Ui.Reveal(zip);
         return 0;
     }

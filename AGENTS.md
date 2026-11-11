@@ -1,7 +1,6 @@
 # Working on RO3Emu
 
-Rules for anyone changing this repository, people and coding agents alike. [CONTRIBUTING.md](CONTRIBUTING.md) and
-[docs/guide/testing.md](docs/guide/testing.md) have the details.
+Rules for anyone changing this repository, people and coding agents alike. [docs/guide/testing.md](docs/guide/testing.md) has the details.
 
 ## Before you push
 

@@ -2,7 +2,7 @@
 
 The full guide behind the README's three steps.
 
-1. Download **`RO3Emu-win-x64.zip`** from the [latest release](https://github.com/aethai/ro3emu-server/releases/latest)
+1. Download **`RO3Emu-win-x64.zip`** from your release page
    and extract it anywhere.
 2. Double-click **`RO3Emu.exe`**. Nothing to install: no .NET, Java or Node.js. If Windows says "Windows protected
    your PC" (RO3Emu is not signed), click *More info*, then *Run anyway*.
