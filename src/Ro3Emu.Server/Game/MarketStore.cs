@@ -242,9 +242,9 @@ public sealed class MarketTransaction
 
     /// <summary>Enlist a canonical system template mail in the same escrow transaction.</summary>
     public string DeliverMail(long roleId, int templateId, IEnumerable<InvItem>? items = null,
-        IReadOnlyDictionary<int, long>? currency = null, params string[] contentParams)
+        IReadOnlyDictionary<int, long>? currency = null, byte[]? rawContentParams = null, params string[] contentParams)
     {
-        string id = _mail.DeliverMarket(_plan, Now, roleId, templateId, items, currency, contentParams);
+        string id = _mail.DeliverMarket(_plan, Now, roleId, templateId, items, currency, contentParams, rawContentParams);
         _writes = true;
         MailRecipients.Add(roleId);
         return id;
