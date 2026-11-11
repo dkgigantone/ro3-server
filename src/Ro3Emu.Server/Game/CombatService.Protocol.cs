@@ -252,7 +252,7 @@ public sealed partial class CombatService
     private const int BlitzBeatShow = 13102, FalconDisplayType = 5;
 
     /// <summary>Blitz Beat (show 13102) is cast and shown on the HIGH_LEVEL routes (31106/31107/31109), as the Genesis server does.</summary>
-    internal static bool FalconHigh(JsonElement row) => GameData.Int(row, "_iScriptShow") == BlitzBeatShow;
+    internal static bool FalconHigh(JsonElement row) => SkillShow.ScriptShowId(row) == BlitzBeatShow;
 
     /// <summary>
     /// The Hunter's falcon flight: the cast's 31109 SkillEffectDisplayNotify, sent with the cast timeline, names effect
