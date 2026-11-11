@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/hero.svg" alt="RO3Emu: play Ragnarok Online 3 on your own server" width="100%">
+  <img src="docs/assets/eclipse-banner.png" alt="RO3Eclipse: a new shadow falls over Midgard" width="100%">
 </p>
 
 <p align="center">
