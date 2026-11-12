@@ -25,7 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from common import APP_DIR, LOCK, STATE_DIR, atomic_write, compact, read_json, server_running, sha256
+from common import APP_DIR, LOCK, STATE_DIR, atomic_write, client_dir, compact, read_json, server_running, set_client_dir, sha256
 from items import ItemsEditor
 from shops import ShopsEditor
 
@@ -388,6 +388,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, (STATIC / "items.html").read_bytes(), "text/html")
             if path == "/shops":
                 return self.send(200, (STATIC / "shops.html").read_bytes(), "text/html")
+            if path == "/api/client-dir":
+                c = client_dir()
+                return self.ok({"dir": str(c) if c else ""})
             if path == "/api/shops/data":
                 return self.ok(self.shops.payload())
             if path == "/api/shops/export.csv":
@@ -431,6 +434,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/rebaseline":
                 ed.rebaseline()
                 return self.ok(ed.meta())
+            if path == "/api/client-dir":
+                return self.ok({"dir": str(set_client_dir(body["dir"]))})
             if path == "/api/shops/set-many":
                 return self.ok(self.shops.set_many(body["items"]))
             if path == "/api/shops/apply":

@@ -20,7 +20,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from common import APP_DIR, LOCK, STATE_DIR, atomic_write, compact, read_json, server_running, sha256
+import common
+from common import APP_DIR, LOCK, STATE_DIR, atomic_write, compact, read_json, server_running, sha256, update_overlay
 
 OVERRIDES = APP_DIR / "overrides" / "shops.json"
 TABLE = "ShopCommodityConfig"
@@ -321,6 +322,24 @@ class ShopsEditor:
         for old in sorted(self.backups.glob(f"{TABLE}-*.json"))[:-MAX_BACKUPS]:
             old.unlink(missing_ok=True)
 
+    OVERLAY_FIELDS = (K_NUM, K_PER, K_PRICE)
+
+    def write_overlay(self, ov, only=None):
+        """Lines for the client hook (ConfigOverlay) so the shop window shows the edited price and limit. Only this
+        page's own table is replaced in client-overlay/config-overlay.tsv; the card lines of the Items page stay."""
+        lines = []
+        for rid in sorted(ov[TABLE], key=int):
+            if only is not None and rid not in only:
+                continue
+            flds = ov[TABLE][rid]
+            for f in self.OVERLAY_FIELDS:
+                if f not in flds:
+                    continue
+                v = flds[f]
+                text = f"{v[0]}:{v[1]}" if isinstance(v, list) else str(v)
+                lines.append("\t".join([TABLE, rid, f, text]))
+        return update_overlay({TABLE}, lines)
+
     def apply(self):
         with LOCK:
             self.check_home()
@@ -345,8 +364,9 @@ class ShopsEditor:
             st["applied_sha"] = sha256(self.live)
             st["applied_overrides"] = self.ov_hash(ov)
             self.save_state(st)
+            overlay = self.write_overlay(ov, only=set(idx) & set(ov[TABLE]))
             return {"rows": self.count(ov) - len(skipped), "fields": fields, "skippedRows": skipped,
-                    "backup": stamp, "meta": self.meta()}
+                    "backup": stamp, "overlay": overlay, "published": dict(common.LAST_PUBLISH), "meta": self.meta()}
 
     def restore_original(self):
         with LOCK:
@@ -357,6 +377,7 @@ class ShopsEditor:
             st["applied_sha"] = None
             st["applied_overrides"] = None
             self.save_state(st)
+            update_overlay({TABLE}, [])      # originals are back: nothing for the client to override
             return self.meta()
 
     # ------------------------------------------------------------ csv

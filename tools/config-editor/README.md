@@ -39,5 +39,5 @@ The untouched original lives in `state/` (not committed). **Put the untouched or
 - Limit 0 = unlimited. A limit above 0 needs a period (1 daily, 2 weekly, 3 monthly, 4 lifetime, 5 season); the page flags a limit with period 0.
 - Fashion rows sell a look (WardRobe id); their look cannot be changed here. Fashion class labels are our best reading of the data.
 - **Export CSV** gives one line per row. In **Import CSV** leave a cell blank to keep the current value; a preview lists every change and nothing is imported unless all lines are valid.
-- Phase 1 changes the server only. The client shop window may still show its own prices until the client overlay is extended.
+- Apply also writes the shop lines (price, limit, period) into `client-overlay/config-overlay.tsv`, the same file the Items page uses for cards (each page replaces only its own lines). Copy it to `<client>\ro3emu\custom\` and restart the client so the shop list, buy popup and tooltip show the edited values. Needs the client hook build that accepts `ShopCommodityConfig`.
 - Adding brand-new shop rows comes in a later step.

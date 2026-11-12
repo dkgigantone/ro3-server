@@ -12,7 +12,9 @@ namespace Ro3Emu.ClientHooks
     /// stays at the original +4. The server editor (plus-config-editor) writes the edited rows to
     /// &lt;client&gt;\ro3emu\custom\config-overlay.tsv, one line per row and field, tab separated:
     /// <c>Table  Row  Field  attr:value;attr:value</c> (a list of [attribute, value] pairs, the shape of CardConfig
-    /// _kBasicAttribute and CardUpgradeConfig _iAttr). Lines starting with # are comments.
+    /// _kBasicAttribute and CardUpgradeConfig _iAttr). ShopCommodityConfig adds two more shapes, chosen by the field
+    /// name: <c>_kItemPerPrice</c> is one flat [currency item id, price] list written <c>1:18000</c>, and
+    /// <c>_iPurchaseNum</c> / <c>_iPurchaseTimesLimit</c> are plain numbers written <c>9</c>. Lines starting with # are comments.
     /// <para>For each table in the file, GetEntryPtr is wrapped on the config class (the same route as WardrobeCustom,
     /// BaseClass's __newindex writes the shared vtbl, so every config object reaches the wrapper): the row the client asks
     /// for first gets the edited lines. The row is the client's live Lua table; nothing is written to disk and a restart
@@ -28,14 +30,22 @@ namespace Ro3Emu.ClientHooks
         private const int MaxHitLogs = 6;
 
         /// <summary>The table names the overlay accepts (the client config classes are lua_cfg_&lt;lower case name&gt;).</summary>
-        private static readonly string[] Tables = { "CardConfig", "CardUpgradeConfig" };
+        private static readonly string[] Tables = { "CardConfig", "CardUpgradeConfig", "ShopCommodityConfig" };
 
         // Kept alive here: Lua holds the pushed delegates only weakly through xLua's object pool.
         private static readonly List<TableHook> Hooks = new List<TableHook>();
 
         private static Obf_R.Obf_Ef _rawget, _rawset, _pack;
 
-        /// <summary>The edited lines of one row, per field.</summary>
+        /// <summary>How a field is stored in the client's row: a list of pairs, one flat pair, or a plain number.</summary>
+        private enum Kind { Pairs, Flat, Number }
+
+        private static Kind KindOf(string field) =>
+            field == "_kItemPerPrice" ? Kind.Flat
+            : field == "_iPurchaseNum" || field == "_iPurchaseTimesLimit" ? Kind.Number
+            : Kind.Pairs;
+
+        /// <summary>The edited lines of one row, per field (Number: one line with one value; Flat: one line with two).</summary>
         private sealed class RowEdit
         {
             public readonly Dictionary<string, long[][]> Fields = new Dictionary<string, long[][]>();
@@ -110,16 +120,25 @@ namespace Ro3Emu.ClientHooks
             bool changed = false;
             foreach (var field in edit.Fields)
             {
-                if (Matches(row.Obf_RuA<object>(field.Key) as Obf_R.Obf_ff, field.Value)) continue;
-                _rawset.Obf_HuA(row, field.Key, Build(field.Value));
+                if (Matches(row, field.Key, field.Value)) continue;
+                if (KindOf(field.Key) == Kind.Number) _rawset.Obf_HuA(row, field.Key, field.Value[0][0]);
+                else _rawset.Obf_HuA(row, field.Key, Build(field.Value, KindOf(field.Key) == Kind.Flat));
                 changed = true;
             }
             return changed;
         }
 
-        private static bool Matches(Obf_R.Obf_ff outer, long[][] lines)
+        private static bool Matches(Obf_R.Obf_ff row, string field, long[][] lines)
         {
+            var current = row.Obf_RuA<object>(field);
+            var kind = KindOf(field);
+            if (kind == Kind.Number) return current != null && !(current is Obf_R.Obf_ff) && LuaPatches.ToLong(current) == lines[0][0];
+            var outer = current as Obf_R.Obf_ff;
             if (outer == null) return false;
+            if (kind == Kind.Flat)
+                return LuaPatches.ToLong(First(_rawget.Obf_HuA(outer, 1L))) == lines[0][0]
+                    && LuaPatches.ToLong(First(_rawget.Obf_HuA(outer, 2L))) == lines[0][1]
+                    && First(_rawget.Obf_HuA(outer, 3L)) == null;
             for (var i = 0; i < lines.Length; i++)
             {
                 if (!(First(_rawget.Obf_HuA(outer, i + 1L)) is Obf_R.Obf_ff inner)) return false;
@@ -129,10 +148,16 @@ namespace Ro3Emu.ClientHooks
             return First(_rawget.Obf_HuA(outer, lines.Length + 1L)) == null;
         }
 
-        /// <summary>A Lua list of {attribute, value} lists, built like the client's own (table.pack without n).</summary>
-        private static Obf_R.Obf_ff Build(long[][] lines)
+        /// <summary>A Lua list of {attribute, value} lists (or, flat, one {a, b} list), built like the client's own (table.pack without n).</summary>
+        private static Obf_R.Obf_ff Build(long[][] lines, bool flat = false)
         {
             var outer = NewTable();
+            if (flat)
+            {
+                _rawset.Obf_HuA(outer, 1L, lines[0][0]);
+                _rawset.Obf_HuA(outer, 2L, lines[0][1]);
+                return outer;
+            }
             for (var i = 0; i < lines.Length; i++)
             {
                 var inner = NewTable();
@@ -157,7 +182,11 @@ namespace Ro3Emu.ClientHooks
             foreach (var field in edit.Fields.Keys)
             {
                 text.Append(field).Append(" =");
-                if (row.Obf_RuA<object>(field) is Obf_R.Obf_ff outer)
+                var now = row.Obf_RuA<object>(field);
+                if (KindOf(field) == Kind.Number) text.Append(' ').Append(now == null || now is Obf_R.Obf_ff ? "nil" : LuaPatches.ToLong(now).ToString(CultureInfo.InvariantCulture));
+                else if (KindOf(field) == Kind.Flat && now is Obf_R.Obf_ff flat)
+                    text.Append(' ').Append(LuaPatches.ToLong(First(_rawget.Obf_HuA(flat, 1L)))).Append(':').Append(LuaPatches.ToLong(First(_rawget.Obf_HuA(flat, 2L))));
+                else if (now is Obf_R.Obf_ff outer)
                     for (var i = 1L; First(_rawget.Obf_HuA(outer, i)) is Obf_R.Obf_ff inner; i++)
                         text.Append(' ').Append(LuaPatches.ToLong(First(_rawget.Obf_HuA(inner, 1L)))).Append(':').Append(LuaPatches.ToLong(First(_rawget.Obf_HuA(inner, 2L))));
                 else text.Append(" nil");
@@ -176,7 +205,7 @@ namespace Ro3Emu.ClientHooks
             {
                 if (line.Length == 0 || line[0] == '#') continue;
                 var c = line.Split('\t');
-                if (c.Length < 4 || Array.IndexOf(Tables, c[0]) < 0 || !long.TryParse(c[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var row) || !TryLines(c[3], out var lines))
+                if (c.Length < 4 || Array.IndexOf(Tables, c[0]) < 0 || !long.TryParse(c[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var row) || !TryField(c[2], c[3], out var lines))
                 {
                     Log("bad line in config-overlay.tsv: " + line);
                     continue;
@@ -186,6 +215,21 @@ namespace Ro3Emu.ClientHooks
                 edit.Fields[c[2]] = lines;
             }
             return all;
+        }
+
+        /// <summary>Reads a field's text by its shape: "9" (number), "1:18000" (flat pair) or "104:40;1:10" (list of pairs).</summary>
+        private static bool TryField(string field, string text, out long[][] lines)
+        {
+            lines = null;
+            var kind = KindOf(field);
+            if (kind == Kind.Number)
+            {
+                if (!long.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n)) return false;
+                lines = new[] { new[] { n } };
+                return true;
+            }
+            if (!TryLines(text, out lines)) return false;
+            return kind != Kind.Flat || lines.Length == 1;
         }
 
         /// <summary>"104:40;1:10" -> [[104, 40], [1, 10]]; an empty text is an empty list.</summary>
