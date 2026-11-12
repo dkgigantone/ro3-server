@@ -130,9 +130,10 @@ function render(rows, q){
     <div><h3>${esc(r.name) || "(no English name)"}</h3><div class="meta">Item ${r.id}${r.edited?' <span class="tag">edited</span>':""}</div>
       <div class="meta">${r.hasDesc ? "Has a description (text id "+r.descId+")"+(r.sharedBy? "; <b>"+r.sharedBy+" other item"+(r.sharedBy>1?"s":"")+" share this text</b>":"") : "No description yet: saving gives it one."}</div></div>
     <div><textarea data-t="1" placeholder="Description shown in the item window">${esc(r.text)}</textarea>
-      <div class="btns"><button class="primary" data-save="1">Save</button>${r.edited?'<button data-reset="1">Back to original</button>':""}
+      <div class="btns"><button class="primary" data-save="1">Save</button><button data-suggest="1" title="Fill the box from the item's effect, cooldown and level">Suggest</button>${r.edited?'<button data-reset="1">Back to original</button>':""}
       <span class="hint">Keep placeholders like @{1} if the original has them. A new line is allowed.</span></div></div></div>`).join("");
   $("card").querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>save(b.closest(".rowc")));
+  $("card").querySelectorAll("[data-suggest]").forEach(b=>b.onclick=()=>suggest(b.closest(".rowc")));
   $("card").querySelectorAll("[data-reset]").forEach(b=>b.onclick=()=>reset(b.closest(".rowc")));
 }
 function done(r, what){
@@ -142,6 +143,17 @@ function done(r, what){
 async function save(el){
   try{ done(await api("/api/texts/set", {item:+el.dataset.id, text:el.querySelector("textarea").value}), "Saved."); await search(last); }
   catch(e){ toast(e.message); }
+}
+async function suggest(el){
+  try{
+    const d = await api("/api/texts/suggest?item="+el.dataset.id);
+    const box = el.querySelector("textarea");
+    if(d.text){
+      if(box.value.trim() && box.value.trim()!==d.text.trim() && !confirm("Replace the text in the box with the suggestion? (Nothing is saved until you press Save.)")) return;
+      box.value = d.text;
+    }
+    toast((d.text ? "Suggested. Edit it if you like, then press Save." : "No suggestion.") + (d.notes.length ? " " + d.notes.join(" ") : ""), !!d.text);
+  }catch(e){ toast(e.message); }
 }
 async function reset(el){
   try{ done(await api("/api/texts/reset", {item:+el.dataset.id}), "Back to the original."); await search(last); }

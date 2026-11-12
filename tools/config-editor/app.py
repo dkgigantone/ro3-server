@@ -395,6 +395,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/texts/search":
                 from urllib.parse import parse_qs
                 return self.ok(self.texts.search((parse_qs(urlparse(self.path).query).get("q") or [""])[0]))
+            if path == "/api/texts/suggest":
+                from urllib.parse import parse_qs
+                return self.ok(self.texts.suggest((parse_qs(urlparse(self.path).query).get("item") or ["0"])[0]))
             if path == "/api/client-dir":
                 c = client_dir()
                 return self.ok({"dir": str(c) if c else ""})
