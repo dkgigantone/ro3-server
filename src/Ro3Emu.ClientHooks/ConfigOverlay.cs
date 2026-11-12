@@ -34,7 +34,7 @@ namespace Ro3Emu.ClientHooks
         private const int MaxHitLogs = 6;
 
         /// <summary>The table names the overlay accepts (the client config classes are lua_cfg_&lt;lower case name&gt;).</summary>
-        private static readonly string[] Tables = { "CardConfig", "CardUpgradeConfig", "ShopCommodityConfig" };
+        private static readonly string[] Tables = { "CardConfig", "CardUpgradeConfig", "ShopCommodityConfig", "ItemConfig" };
 
         // Kept alive here: Lua holds the pushed delegates only weakly through xLua's object pool.
         private static readonly List<TableHook> Hooks = new List<TableHook>();
@@ -42,7 +42,18 @@ namespace Ro3Emu.ClientHooks
         private static Obf_R.Obf_Ef _rawget, _rawset, _pack;
 
         /// <summary>How a field is stored in the client's row: a list of pairs, one flat pair, or a plain number.</summary>
-        private enum Kind { Pairs, Flat, Number }
+        private enum Kind { Pairs, Flat, Number, Key }
+
+        /// <summary>Own texts: <c>Text  id  @text  escaped English</c> lines, answered by the Language.Trans wrapper (WrapTrans).</summary>
+        private static readonly Dictionary<long, string> Texts = new Dictionary<long, string>();
+
+        /// <summary>A text key field (a Lua list {text id}): ItemConfig _iDescription / _iDescription2.</summary>
+        private static readonly HashSet<string> KeyFields = new HashSet<string> { "_iDescription", "_iDescription2" };
+
+        public delegate object TransLookup(object key, object param);
+        private static readonly TransLookup TransWrapper = Trans;
+        private static Obf_R.Obf_Ef _trans;
+        private static int _transHits;
 
         private static readonly HashSet<string> NumberFields = new HashSet<string>
         {
@@ -51,6 +62,7 @@ namespace Ro3Emu.ClientHooks
 
         private static Kind KindOf(string field) =>
             field == "_kItemPerPrice" ? Kind.Flat
+            : KeyFields.Contains(field) ? Kind.Key
             : NumberFields.Contains(field) ? Kind.Number
             : Kind.Pairs;
 
@@ -110,7 +122,7 @@ namespace Ro3Emu.ClientHooks
                 _addsDone = false;
                 _addTries = 0;
                 var edits = Load();
-                if (edits.Count == 0) return;
+                if (edits.Count == 0 && Texts.Count == 0) return;
                 _rawget = global.Obf_LuA<Obf_R.Obf_Ef>("rawget");
                 _rawset = global.Obf_LuA<Obf_R.Obf_Ef>("rawset");
                 _pack = global.Obf_LuA<Obf_R.Obf_Ef>("table.pack");
@@ -127,6 +139,7 @@ namespace Ro3Emu.ClientHooks
                 var instance = db?.Obf_RuA<Obf_R.Obf_Ef>("GetInstance")?.Obf_HuA(db);
                 var holder = instance != null && instance.Length > 0 ? instance[0] as Obf_R.Obf_ff : null;
                 foreach (var pair in edits) Hook(manager, global, holder, pair.Key, pair.Value);
+                if (Texts.Count > 0) WrapTrans(global);
                 if (Adds.Count > 0) { Log(Adds.Count + " shop row(s) to add"); TryAdd(); }
             }
             catch (Exception e) { Debug.LogWarning("[Ro3Emu.ConfigOverlay] " + e.GetType().Name + ": " + e.Message); }
@@ -212,6 +225,49 @@ namespace Ro3Emu.ClientHooks
             return null;
         }
 
+        /// <summary>Wraps Language.Trans so our own text ids answer with our own strings (the way WardrobeCustom does for its hats).</summary>
+        private static void WrapTrans(Obf_R.Obf_ff global)
+        {
+            var language = global.Obf_LuA<Obf_R.Obf_ff>("Language");
+            var original = language?.Obf_RuA<Obf_R.Obf_Ef>("Trans");
+            if (original == null) { Log("Language.Trans not found; own texts will not show"); return; }
+            _trans = original;
+            language.Obf_luA<string, TransLookup>("Trans", TransWrapper);
+            Log("Language.Trans wrapped; " + Texts.Count + " own text(s)");
+        }
+
+        private static object Trans(object key, object param)
+        {
+            try
+            {
+                var table = key as Obf_R.Obf_ff;
+                var id = table != null ? LuaPatches.ToLong(First(_rawget?.Obf_HuA(table, 1L))) : LuaPatches.ToLong(key);
+                if (Texts.TryGetValue(id, out var text))
+                {
+                    // @{1}, @{2}...: the strings after the id in the key list, as the game's own Trans fills them.
+                    if (table != null)
+                        for (var i = 2L; First(_rawget.Obf_HuA(table, i)) is object arg && i < 12; i++)
+                            text = text.Replace("@{" + (i - 1) + "}", Convert.ToString(arg, CultureInfo.InvariantCulture));
+                    if (_transHits++ < 4) Log("Trans answered id " + id + " -> " + text);
+                    return text;
+                }
+            }
+            catch (Exception e) { Log("Trans wrapper: " + e.GetType().Name + ": " + e.Message); }
+            return First(_trans?.Obf_HuA(key, param));
+        }
+
+        private static string Unescape(string s)
+        {
+            var text = new System.Text.StringBuilder(s.Length);
+            for (var i = 0; i < s.Length; i++)
+            {
+                if (s[i] != '\\' || i + 1 >= s.Length) { text.Append(s[i]); continue; }
+                var next = s[++i];
+                text.Append(next == 'n' ? '\n' : next == 't' ? '\t' : next);
+            }
+            return text.ToString();
+        }
+
         private static void Hook(LA_LuaManager manager, Obf_R.Obf_ff global, Obf_R.Obf_ff holder, string table, Dictionary<long, RowEdit> rows)
         {
             var config = LuaPatches.Module(manager, global, "lua_cfg_" + table.ToLowerInvariant());
@@ -237,6 +293,7 @@ namespace Ro3Emu.ClientHooks
             {
                 if (Matches(row, field.Key, field.Value)) continue;
                 if (KindOf(field.Key) == Kind.Number) _rawset.Obf_HuA(row, field.Key, field.Value[0][0]);
+                else if (KindOf(field.Key) == Kind.Key) { var key = NewTable(); _rawset.Obf_HuA(key, 1L, field.Value[0][0]); _rawset.Obf_HuA(row, field.Key, key); }
                 else _rawset.Obf_HuA(row, field.Key, Build(field.Value, KindOf(field.Key) == Kind.Flat));
                 changed = true;
             }
@@ -250,6 +307,7 @@ namespace Ro3Emu.ClientHooks
             if (kind == Kind.Number) return current != null && !(current is Obf_R.Obf_ff) && LuaPatches.ToLong(current) == lines[0][0];
             var outer = current as Obf_R.Obf_ff;
             if (outer == null) return false;
+            if (kind == Kind.Key) return LuaPatches.ToLong(First(_rawget.Obf_HuA(outer, 1L))) == lines[0][0] && First(_rawget.Obf_HuA(outer, 2L)) == null;
             if (kind == Kind.Flat)
                 return LuaPatches.ToLong(First(_rawget.Obf_HuA(outer, 1L))) == lines[0][0]
                     && LuaPatches.ToLong(First(_rawget.Obf_HuA(outer, 2L))) == lines[0][1]
@@ -299,6 +357,7 @@ namespace Ro3Emu.ClientHooks
                 text.Append(field).Append(" =");
                 var now = row.Obf_RuA<object>(field);
                 if (KindOf(field) == Kind.Number) text.Append(' ').Append(now == null || now is Obf_R.Obf_ff ? "nil" : LuaPatches.ToLong(now).ToString(CultureInfo.InvariantCulture));
+                else if (KindOf(field) == Kind.Key && now is Obf_R.Obf_ff key) text.Append(' ').Append(LuaPatches.ToLong(First(_rawget.Obf_HuA(key, 1L))));
                 else if (KindOf(field) == Kind.Flat && now is Obf_R.Obf_ff flat)
                     text.Append(' ').Append(LuaPatches.ToLong(First(_rawget.Obf_HuA(flat, 1L)))).Append(':').Append(LuaPatches.ToLong(First(_rawget.Obf_HuA(flat, 2L))));
                 else if (now is Obf_R.Obf_ff outer)
@@ -314,12 +373,18 @@ namespace Ro3Emu.ClientHooks
         private static Dictionary<string, Dictionary<long, RowEdit>> Load()
         {
             var all = new Dictionary<string, Dictionary<long, RowEdit>>();
+            Texts.Clear();
             var path = Path.Combine(Path.GetDirectoryName(Application.dataPath), "ro3emu", "custom", "config-overlay.tsv");
             if (!File.Exists(path)) { Log("no overlay at " + path + " (nothing edited, or not copied from the editor)"); return all; }
             foreach (var line in File.ReadAllLines(path, System.Text.Encoding.UTF8))
             {
                 if (line.Length == 0 || line[0] == '#') continue;
                 var c = line.Split('\t');
+                if (c.Length >= 4 && c[0] == "Text" && c[2] == "@text" && long.TryParse(c[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var textId))
+                {
+                    Texts[textId] = Unescape(c[3]);
+                    continue;
+                }
                 if (c.Length >= 4 && c[2] == "@clone" && Array.IndexOf(Tables, c[0]) >= 0
                     && long.TryParse(c[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var newRow)
                     && long.TryParse(c[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var from) && from > 0)
@@ -346,7 +411,7 @@ namespace Ro3Emu.ClientHooks
         {
             lines = null;
             var kind = KindOf(field);
-            if (kind == Kind.Number)
+            if (kind == Kind.Number || kind == Kind.Key)
             {
                 if (!long.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n)) return false;
                 lines = new[] { new[] { n } };

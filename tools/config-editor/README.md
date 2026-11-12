@@ -41,3 +41,9 @@ The untouched original lives in `state/` (not committed). **Put the untouched or
 - **Export CSV** gives one line per row. In **Import CSV** leave a cell blank to keep the current value; a preview lists every change and nothing is imported unless all lines are valid.
 - Apply also writes the shop lines (price, limit, period) into `client-overlay/config-overlay.tsv`, the same file the Items page uses for cards (each page replaces only its own lines). Copy it to `<client>\ro3emu\custom\` and restart the client so the shop list, buy popup and tooltip show the edited values. Needs the client hook build that accepts `ShopCommodityConfig`.
 - **+ Add item** (bar above each item tab): enter an item ID (its English name shows live), currency, price, limit and period. The editor copies the tab's last item row, gives it the next row ID and the next sort position, and stores it under `Added` in `overrides/shops.json`. Apply writes the row into `ShopCommodityConfig.json` and `@clone` lines into the client overlay; the client hook adds the row to the tab when the shop data loads. Only items the client already knows (ItemConfig) work; fashion tabs and custom items are not supported yet. The red cross removes an added item.
+
+## Descriptions notes
+- The **Descriptions** page changes the item description the game client shows. Search an item by ID or English name, edit the text, press Save. Edits live in `overrides/texts.json` (commit it).
+- Client only: Save writes `Text` and `ItemConfig _iDescription` lines into `client-overlay/config-overlay.tsv` and copies it into `<client>\ro3emu\custom\`. Restart the client to see the change. The server is not touched.
+- An item with no description gets a new text id (99920000000 + item id). An item that already has one keeps its id, so every item that shares that text shows the new words (the page says how many).
+- Skill descriptions are not editable yet.

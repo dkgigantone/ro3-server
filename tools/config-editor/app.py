@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 from common import APP_DIR, LOCK, STATE_DIR, atomic_write, client_dir, compact, read_json, server_running, set_client_dir, sha256
 from items import ItemsEditor
 from shops import ShopsEditor
+from texts import TextsEditor
 
 STATIC = APP_DIR / "static"
 OVERRIDES = APP_DIR / "overrides" / "skills.json"
@@ -346,6 +347,7 @@ class Handler(BaseHTTPRequestHandler):
     editor: Editor = None
     items: ItemsEditor = None
     shops: ShopsEditor = None
+    texts: TextsEditor = None
 
     def log_message(self, *a):
         pass
@@ -388,6 +390,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, (STATIC / "items.html").read_bytes(), "text/html")
             if path == "/shops":
                 return self.send(200, (STATIC / "shops.html").read_bytes(), "text/html")
+            if path == "/texts":
+                return self.send(200, (STATIC / "texts.html").read_bytes(), "text/html")
+            if path == "/api/texts/search":
+                from urllib.parse import parse_qs
+                return self.ok(self.texts.search((parse_qs(urlparse(self.path).query).get("q") or [""])[0]))
             if path == "/api/client-dir":
                 c = client_dir()
                 return self.ok({"dir": str(c) if c else ""})
@@ -438,6 +445,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.ok({"dir": str(set_client_dir(body["dir"]))})
             if path == "/api/shops/set-many":
                 return self.ok(self.shops.set_many(body["items"]))
+            if path == "/api/texts/set":
+                return self.ok(self.texts.set_item(body["item"], body.get("text", "")))
+            if path == "/api/texts/reset":
+                return self.ok(self.texts.reset_item(body["item"]))
+            if path == "/api/texts/apply":
+                return self.ok(self.texts.apply())
             if path == "/api/shops/add-item":
                 return self.ok(self.shops.add_item(body["cls"], body["itemId"], body["price"], body.get("cur"),
                                                    body.get("num", 0), body.get("per", 0)))
@@ -476,6 +489,7 @@ class Handler(BaseHTTPRequestHandler):
                 Handler.editor = new
                 Handler.items = ItemsEditor(home)
                 Handler.shops = ShopsEditor(home)
+                Handler.texts = TextsEditor(home)
                 STATE_DIR.mkdir(parents=True, exist_ok=True)
                 atomic_write(SETTINGS, json.dumps({"home": str(home)}))
                 return self.ok(new.meta())
@@ -507,6 +521,7 @@ def main():
     Handler.editor = Editor(guess_home(args.home))
     Handler.items = ItemsEditor(Handler.editor.home)
     Handler.shops = ShopsEditor(Handler.editor.home)
+    Handler.texts = TextsEditor(Handler.editor.home)
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     url = f"http://127.0.0.1:{args.port}/"
     print(f"RO3 Plus Config Editor\n  game folder: {Handler.editor.home}\n  open: {url}\n  (close this window to stop)")
