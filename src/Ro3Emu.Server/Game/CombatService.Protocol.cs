@@ -149,7 +149,11 @@ public sealed partial class CombatService
                 if (mode > 0 && modes.GetValueOrDefault(group) != mode)
                 {
                     ended.Infos.Add(new SkillCdInfo { SkillId = group, SkillMode = mode, CdStartTimestampMs = now, CdEndTimestampMs = now });
-                    ended.Infos.Add(new SkillCdInfo { SkillId = group, SkillMode = 0 });
+                    // A blank entry clears mode 0 on the client, so a cooldown still running there (Shield Block's 10 s) is told again.
+                    long running = Math.Max(session.SkillModeCds.GetValueOrDefault((group, 0)), session.SkillCds.GetValueOrDefault(group));
+                    var plain = new SkillCdInfo { SkillId = group, SkillMode = 0 };
+                    if (running > now) { plain.CdStartTimestampMs = now; plain.CdEndTimestampMs = running; }
+                    ended.Infos.Add(plain);
                 }
             told.Clear();
             foreach (var (group, mode) in modes) if (mode > 0) told[group] = mode;
