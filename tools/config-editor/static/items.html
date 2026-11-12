@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RO3 Plus - Item Editor</title>
+<style>
+:root{
+  --bg:#f4f6fa; --panel:#ffffff; --panel2:#f0f3f8; --line:#dfe5ee; --text:#1b2433; --muted:#6a778c;
+  --accent:#3b6df0; --accent-d:#2c55c7; --ok:#18a56b; --warn:#c98a0b; --bad:#d6404f; --chip:#e8eefc; --edit:#fff6dc;
+  --shadow:0 1px 2px rgba(20,30,50,.06),0 4px 14px rgba(20,30,50,.06);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0e1420; --panel:#151d2c; --panel2:#1b2638; --line:#27344b; --text:#e6ecf6; --muted:#8c9bb3;
+  --accent:#6b93ff; --accent-d:#5a82f0; --ok:#3ccf91; --warn:#f0b64a; --bad:#ff7380; --chip:#22314f; --edit:#3a3216;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:7px 14px;border-radius:8px}
+button:hover{background:var(--panel2)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{background:var(--accent-d)}
+button.primary:disabled{opacity:.5;cursor:default}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--text);background:var(--panel2)}
+input,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+header .path{color:var(--muted);font-size:12px;max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .spacer{flex:1}
+nav.top{display:flex;gap:4px;background:var(--panel2);padding:3px;border-radius:10px}
+nav.top a{padding:5px 14px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:600}
+nav.top a.on{background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+.pill{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)}
+.tabs{display:flex;gap:2px;padding:10px 20px 0}
+.tabs .tab[data-tab]{cursor:pointer}
+.tabs .tab{padding:8px 18px;border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;background:var(--panel2);color:var(--muted);font-weight:600}
+.tabs .tab.on{background:var(--panel);color:var(--text)}
+.tabs .tab.off{opacity:.55}
+.tabs .tab small{font-weight:400;margin-left:6px}
+.banner{margin:12px 20px 0;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.banner.warn{border-color:var(--warn)} .banner.bad{border-color:var(--bad)}
+.banner .grow{flex:1}
+main{flex:1;display:grid;grid-template-columns:360px 1fr;gap:16px;padding:0 20px 20px;min-height:0}
+aside,section.main{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);min-height:0;display:flex;flex-direction:column}
+aside .tools{padding:12px;display:grid;gap:8px;border-bottom:1px solid var(--line)}
+aside .tools .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+aside .tools label{color:var(--muted);font-size:12px;display:flex;gap:6px;align-items:center}
+#list{overflow:auto;flex:1}
+.item{padding:9px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;gap:8px;align-items:center}
+.item:hover{background:var(--panel2)} .item.sel{background:var(--chip)}
+.item .n{flex:1;min-width:0}
+.item .n b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.item .n span{color:var(--muted);font-size:12px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--warn);flex:none}
+.q{display:inline-block;min-width:22px;text-align:center;border-radius:6px;font-size:11px;font-weight:700;padding:1px 5px;color:#fff;background:#8b97ab}
+.q.q3{background:#3e8ed0}.q.q4{background:#8a56d6}.q.q5{background:#e0922a}.q.q6{background:#d6404f}
+.count{padding:8px 14px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+section.main{overflow:auto}
+.pad{padding:20px 24px 28px}
+.empty{padding:48px 32px;color:var(--muted);max-width:660px}
+.empty h2{color:var(--text);margin:0 0 8px}
+.empty ol{padding-left:20px;line-height:1.9}
+.title{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.title h2{margin:0;font-size:22px}
+.title .sub{color:var(--muted)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;margin-top:14px;align-items:start}
+.card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px;background:var(--panel)}
+.card h3{margin:0 0 2px;font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.card .lead{color:var(--muted);font-size:12.5px;margin:0 0 12px}
+.stat{display:grid;grid-template-columns:minmax(0,1fr) 92px 92px 34px;gap:6px 10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.stat.head{border-top:0;color:var(--muted);font-size:12px;padding-bottom:2px}
+.stat.head span:nth-child(2),.stat.head span:nth-child(3){text-align:right}
+.stat select{width:100%}
+.stat input{width:100%;text-align:right}
+.stat.changed input,.stat.changed select{background:var(--edit);border-color:var(--warn)}
+.stat.bad input{border-color:var(--bad);background:transparent}
+.stat .msg{grid-column:1/-1;font-size:12px;color:var(--bad)}
+.stat .hint{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.pl{display:grid;grid-template-columns:minmax(0,1fr) 120px 34px;gap:6px 10px;align-items:center;padding:7px 0;border-top:1px solid var(--line)}
+.pl:first-child{border-top:0}
+.pl select{width:100%} .pl input{width:100%;text-align:right}
+.pl.changed input,.pl.changed select{background:var(--edit);border-color:var(--warn)}
+.pl.bad input{border-color:var(--bad)}
+.pl .msg{grid-column:1/-1;font-size:12px;color:var(--bad)}
+.pl .hint{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.empty-line{color:var(--muted);font-size:13px;padding:4px 0}
+.facts{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
+details.lv{border-top:1px solid var(--line);padding:8px 0}
+details.lv summary{cursor:pointer;display:flex;gap:10px;align-items:center}
+details.lv summary small{color:var(--muted)}
+.warnbox{border:1px solid var(--warn);border-radius:10px;padding:8px 12px;margin:0 0 10px;font-size:13px;background:var(--edit)}
+.sel2{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.sel2 select{padding:5px 8px}
+.x{padding:4px 0;text-align:center;color:var(--muted);border-color:transparent;background:transparent}
+.x:hover{color:var(--bad)}
+.row2{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.field{display:grid;grid-template-columns:1fr 120px;gap:4px 14px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.field:first-of-type{border-top:0}
+.field .lab b{display:block;font-weight:600}
+.fx{margin:6px 0 10px 18px;padding:0}.fx li{margin:3px 0}
+.field .lab small{color:var(--muted);font-size:12px}
+.field input{width:100%;text-align:right}
+.field.changed input{background:var(--edit);border-color:var(--warn)}
+.was{grid-column:1/-1;font-size:12px;color:var(--warn);display:flex;gap:8px;align-items:center}
+.was button{padding:1px 8px;font-size:12px}
+.preview{position:sticky;top:0}
+table.cmp{width:100%;border-collapse:collapse;font-size:13px}
+table.cmp th{font-weight:600;color:var(--muted);text-align:right;font-size:12px;padding:4px 0}
+table.cmp th:first-child,table.cmp td:first-child{text-align:left}
+table.cmp td{padding:7px 0;border-top:1px solid var(--line);text-align:right;vertical-align:top}
+table.cmp td.up{color:var(--ok)} table.cmp td.down{color:var(--bad)}
+table.cmp td small{display:block;color:var(--muted);font-size:11.5px}
+.note{font-size:12px;color:var(--muted);margin-top:10px}
+.ro{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+.ro td,.ro th{padding:5px 0;border-top:1px solid var(--line);text-align:right}
+.ro th{color:var(--muted);font-size:12px;font-weight:600;border-top:0}
+.ro td:first-child,.ro th:first-child{text-align:left}
+.tag{display:inline-block;background:var(--chip);border-radius:6px;padding:1px 8px;font-size:12px;margin:0 4px 4px 0}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1b2433;color:#fff;padding:10px 18px;border-radius:10px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .2s;max-width:80vw;z-index:30}
+#toast.show{opacity:1} #toast.err{background:var(--bad)}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--text);padding:22px 24px;max-width:540px;box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(10,15,25,.5)}
+dialog h3{margin:0 0 8px} dialog p{color:var(--muted)} dialog .row{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.menu{position:relative}
+.menu .pop{position:absolute;right:0;top:110%;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;display:none;min-width:270px;z-index:10}
+.menu.open .pop{display:block}
+.menu .pop button{display:block;width:100%;text-align:left;border:0;background:transparent}
+.menu .pop button:hover{background:var(--panel2)}
+@media (max-width:1100px){main{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.preview{position:static}aside{max-height:46vh}}
+</style>
+</head>
+<body>
+<header>
+  <nav class="top"><a href="/">Skills</a><a href="/items" class="on">Items</a><a href="/shops">Shops</a></nav>
+  <span class="path" id="home" title=""></span>
+  <button class="ghost" id="changeHome">Change folder</button>
+  <span class="spacer"></span>
+  <span class="pill" id="statePill"></span>
+  <button id="exportBtn">Copy change list</button>
+  <div class="menu" id="menu">
+    <button id="menuBtn">More ▾</button>
+    <div class="pop">
+      <button id="discardBtn">Discard all my item edits</button>
+      <button id="restoreBtn">Put the untouched original item files back in the game</button>
+    </div>
+  </div>
+  <button class="primary" id="applyBtn">Apply to game</button>
+</header>
+<div class="tabs">
+  <span class="tab on" data-tab="equip">Equipment</span>
+  <span class="tab" data-tab="cards">Cards</span>
+  <span class="tab" data-tab="other">Usable &amp; other items</span>
+</div>
+<div id="banners"></div>
+<main>
+  <aside>
+    <div class="tools">
+      <input id="q" type="search" placeholder="Search item name or ID…" autocomplete="off">
+      <div class="two"><select id="part"></select><select id="qual"></select></div>
+      <label><input type="checkbox" id="onlyEdited"> Show only items I edited</label>
+    </div>
+    <div id="list"></div>
+    <div class="count" id="count"></div>
+  </aside>
+  <section class="main" id="main"></section>
+</main>
+<div id="toast"></div>
+<dialog id="dlg"></dialog>
+
+<script>
+"use strict";
+let D = null, OV = { ItemConfig: {}, EquipConfig: {}, CardConfig: {}, CardUpgradeConfig: {} }, META = null;
+let TAB = "equip";           // "equip" | "cards" | "other"
+const SELS = { equip: null, cards: null, other: null };
+const CBYID = new Map();
+const UBYID = new Map();
+const CUR = () => (TAB === "other" ? UBYID : BYID).get(sel);
+const BASEP = { CardConfig: {}, CardUpgradeConfig: {} };   // original [stat, value] lines of card rows
+const PFIELD = { CardConfig: "_kBasicAttribute", CardUpgradeConfig: "_iAttr" };
+let sel = null;              // selected item id (string)
+let shown = 0;
+const BYID = new Map();
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (n) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 });
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const r = await fetch(path, opt);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function toast(msg, err) {
+  const t = $("#toast"); t.textContent = msg; t.className = "show" + (err ? " err" : "");
+  clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = ""), err ? 5000 : 2600);
+}
+
+// ---------- values (original vs. edited)
+const ovItem = (e) => OV.ItemConfig[e.id] || {};
+const ovEquip = (e) => OV.EquipConfig[e.equipId] || {};
+const baseLines = (e) => e.base.map((b) => [b.a, b.min, b.max]);
+const lines = (e) => ovEquip(e)._kBasicAttribute || baseLines(e);
+const level = (e) => (ovItem(e)._iLevelNeed !== undefined ? ovItem(e)._iLevelNeed : e.level);
+const slots = (e) => (ovItem(e)._iEnchantSlot !== undefined ? ovItem(e)._iEnchantSlot : e.slots);
+const edited = (e) => !!(Object.keys(ovItem(e)).length || Object.keys(ovEquip(e)).length);
+const attrName = (a) => (D.attrs[a] ? D.attrs[a].name : "Stat " + a);
+const isPct = (a) => !!(D.attrs[a] && D.attrs[a].pct);
+const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+const lineText = (ls) => ls.length ? ls.map(([a, lo, hi]) => attrName(a) + " " + fmt(lo) + (hi !== lo ? "–" + fmt(hi) : "")).join(", ") : "no base stats";
+
+// ---------- list
+const cardEdited = (c) => c.tiers.some((t) => OV.CardConfig[t.row]) || (D.upgrades[c.part + ":" + c.quality] || []).some((u) => OV.CardUpgradeConfig[u.row]);
+const uEdited = (u) => !!Object.keys(OV.ItemConfig[u.id] || {}).length;
+const uVal = (u, f, k) => ((OV.ItemConfig[u.id] || {})[f] !== undefined ? OV.ItemConfig[u.id][f] : u[k]);
+function filtered() {
+  const q = $("#q").value.trim().toLowerCase(), part = $("#part").value, qual = $("#qual").value, only = $("#onlyEdited").checked;
+  if (TAB === "other") return D.usable.filter((u) => (!part || String(u.type) === part) && (!qual || String(u.quality) === qual) && (!only || uEdited(u)) &&
+    (!q || u.name.toLowerCase().includes(q) || u.id.includes(q) || u.desc.toLowerCase().includes(q)));
+  if (TAB === "cards") return D.cards.filter((c) => (!part || String(c.part) === part) && (!qual || String(c.quality) === qual) && (!only || cardEdited(c)) &&
+    (!q || c.name.toLowerCase().includes(q) || c.id.includes(q)));
+  return D.equipment.filter((e) => (!part || String(e.part) === part) && (!qual || String(e.quality) === qual) && (!only || edited(e)) &&
+    (!q || e.name.toLowerCase().includes(q) || e.id.includes(q)));
+}
+function renderList(more) {
+  const rows = filtered();
+  shown = more ? shown + 300 : 300;
+  if (TAB === "other") {
+    $("#list").innerHTML = rows.slice(0, shown).map((u) => `<div class="item ${u.id === sel ? "sel" : ""}" data-id="${u.id}">
+      <span class="q q${u.quality}">Q${u.quality}</span>
+      <div class="n"><b>${esc(u.name)}</b><span>${esc(u.effects.length ? u.effects[0] : (u.desc || "no use effect"))}</span></div>
+      ${uEdited(u) ? '<i class="dot" title="You edited this item"></i>' : ""}</div>`).join("") +
+      (rows.length > shown ? '<div class="item" id="more"><div class="n"><b>Show more…</b></div></div>' : "");
+    $("#count").textContent = `${rows.length.toLocaleString()} item${rows.length === 1 ? "" : "s"}` + (rows.length > shown ? ` (showing ${shown})` : "");
+    return;
+  }
+  if (TAB === "cards") {
+    $("#list").innerHTML = rows.slice(0, shown).map((c) => `<div class="item ${c.id === sel ? "sel" : ""}" data-id="${c.id}">
+      <span class="q q${c.quality}">Q${c.quality}</span>
+      <div class="n"><b>${esc(c.name)}</b><span>${esc(D.cardParts[c.part] || "")} · ${esc(c.tiers.length ? lineTextP(pairs("CardConfig", c.tiers[0].row)) : "")}</span></div>
+      ${cardEdited(c) ? '<i class="dot" title="You edited this card"></i>' : ""}</div>`).join("") +
+      (rows.length > shown ? '<div class="item" id="more"><div class="n"><b>Show more…</b></div></div>' : "");
+    $("#count").textContent = `${rows.length.toLocaleString()} card${rows.length === 1 ? "" : "s"}` + (rows.length > shown ? ` (showing ${shown})` : "");
+    return;
+  }
+  $("#list").innerHTML = rows.slice(0, shown).map((e) => `<div class="item ${e.id === sel ? "sel" : ""}" data-id="${e.id}">
+      <span class="q q${e.quality}">Q${e.quality}</span>
+      <div class="n"><b>${esc(e.name)}</b><span>${esc(D.partNames[e.part] || "")} · Lv ${level(e)} · ${esc(lineText(lines(e)))}</span></div>
+      ${edited(e) ? '<i class="dot" title="You edited this item"></i>' : ""}</div>`).join("") +
+    (rows.length > shown ? '<div class="item" id="more"><div class="n"><b>Show more…</b></div></div>' : "");
+  $("#count").textContent = `${rows.length.toLocaleString()} item${rows.length === 1 ? "" : "s"}` + (rows.length > shown ? ` (showing ${shown})` : "");
+}
+function buildFilters() {
+  if (TAB === "other") {
+    const ts = [...new Set(D.usable.map((u) => u.type))].sort((a, b) => a - b);
+    $("#part").innerHTML = '<option value="">All kinds</option>' + ts.map((t) => `<option value="${t}">Kind ${t} (${D.usable.filter((u) => u.type === t).length})</option>`).join("");
+    const uq = [...new Set(D.usable.map((u) => u.quality))].sort((a, b) => a - b);
+    $("#qual").innerHTML = '<option value="">All qualities</option>' + uq.map((q) => `<option value="${q}">Quality ${q}</option>`).join("");
+    $("#q").placeholder = "Search name, ID or description…"; return;
+  }
+  if (TAB === "cards") {
+    $("#part").innerHTML = '<option value="">All slots</option>' + Object.entries(D.cardParts).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+    const cq = [...new Set(D.cards.map((c) => c.quality))].sort((a, b) => a - b);
+    $("#qual").innerHTML = '<option value="">All qualities</option>' + cq.map((q) => `<option value="${q}">Quality ${q}</option>`).join("");
+    $("#q").placeholder = "Search card name or ID…"; return;
+  }
+  $("#q").placeholder = "Search item name or ID…";
+  $("#part").innerHTML = '<option value="">All types</option>' + Object.entries(D.partNames).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+  const qs = [...new Set(D.equipment.map((e) => e.quality))].sort((a, b) => a - b);
+  $("#qual").innerHTML = '<option value="">All qualities</option>' + qs.map((q) => `<option value="${q}">Quality ${q}</option>`).join("");
+}
+
+// ---------- header / banners
+function renderStatus() {
+  const n = META.changedRows, pill = $("#statePill");
+  let text, cls = "";
+  if (META.fileStatus === "external") { text = "Game files changed outside this tool"; cls = "warn"; }
+  else if (n === 0) { text = META.fileStatus === "applied" ? "Game has old edits – apply to clear" : "No edits"; cls = META.fileStatus === "applied" ? "warn" : "ok"; }
+  else if (META.fileStatus === "applied" && META.inSync) { text = `${n} edited item${n === 1 ? "" : "s"} · applied`; cls = "ok"; }
+  else { text = `${n} edited row${n === 1 ? "" : "s"} · not applied yet`; cls = "warn"; }
+  pill.textContent = text; pill.className = "pill " + cls;
+  $("#home").textContent = META.home; $("#home").title = META.home;
+  let b = "";
+  if (META.fileStatus === "external") {
+    const bad = Object.entries(META.perTable).filter(([, s]) => s === "external").map(([t]) => t + ".json").join(", ");
+    b += `<div class="banner bad"><div class="grow"><b>${esc(bad)} was changed by something else</b> (for example a server update or another tool). Your edits are safe, but Apply is paused so nothing gets overwritten.</div><button id="rebase">Use current files as new original</button></div>`;
+  }
+  if (META.serverRunning)
+    b += `<div class="banner warn"><div class="grow"><b>The server looks like it is running.</b> You can still edit. Restart it after Apply so it loads the new values.</div></div>`;
+  $("#banners").innerHTML = b;
+  const r = $("#rebase"); if (r) r.onclick = () => confirmDlg("Use the current files as the new original?",
+    "Do this after you refreshed the game config on purpose (for example after pulling a server update). Your edits stay and will be laid on top of the new files the next time you Apply.", "Use current files",
+    async () => { META = await api("/api/items/rebaseline", {}); await reload(); toast("Done"); });
+  $("#applyBtn").disabled = META.fileStatus === "external" || META.inSync || (n === 0 && META.fileStatus !== "applied");
+}
+
+// ---------- main panel
+function select(id) { sel = id; if (TAB === "cards" && CBYID.has(id)) initPV(CBYID.get(id)); renderList(false); renderMain(); }
+function attrOptions(cur) {
+  const used = {};
+  D.equipment.forEach((e) => e.base.forEach((b) => (used[b.a] = (used[b.a] || 0) + 1)));
+  const common = Object.keys(used).map(Number).sort((a, b) => attrName(a).localeCompare(attrName(b)));
+  const rest = Object.keys(D.attrs).map(Number).filter((a) => !used[a]).sort((a, b) => attrName(a).localeCompare(attrName(b)));
+  const o = (a) => `<option value="${a}" ${a === cur ? "selected" : ""}>${esc(attrName(a))}${D.attrs[a] && D.attrs[a].var ? " (" + esc(D.attrs[a].var) + ")" : ""}</option>`;
+  return `<optgroup label="Stats gear already uses">${common.map(o).join("")}</optgroup><optgroup label="Other stats">${rest.map(o).join("")}</optgroup>`;
+}
+function statRow(e, ln, i) {
+  const [a, lo, hi] = ln;
+  const orig = baseLines(e).find((x) => x[0] === a);
+  const changed = !orig || orig[1] !== lo || orig[2] !== hi;
+  const pct = isPct(a);
+  return `<div class="stat ${changed ? "changed" : ""}" data-i="${i}">
+    <select data-k="a">${attrOptions(a)}</select>
+    <input type="number" step="1" data-k="min" value="${lo}" aria-label="Minimum">
+    <input type="number" step="1" data-k="max" value="${hi}" aria-label="Maximum">
+    <button class="x" data-del="${i}" title="Remove this stat">✕</button>
+    ${pct ? `<div class="hint">Percent stat: 100 = 1%, so ${fmt(lo)}–${fmt(hi)} means ${fmt(lo / 100)}%–${fmt(hi / 100)}%.</div>` : ""}
+    <div class="msg" hidden></div></div>`;
+}
+function renderOther() {
+  const m = $("#main");
+  if (!sel) { m.innerHTML = `<div class="empty"><h2>Pick an item on the left</h2><p>Consumables, boxes, materials, scrolls and other non-gear items. You see what the item does today, in plain words.</p>
+    <p>You can change the <b>level needed</b> and the <b>stack limit</b>. What the effect itself does (heal amounts, buffs, rewards) is shown but cannot be edited yet.</p></div>`; return; }
+  const u = UBYID.get(sel);
+  const lv = uVal(u, "_iLevelNeed", "level"), st = uVal(u, "_iStackLimit", "stack");
+  m.innerHTML = `<div class="pad">
+    <div class="title"><h2>${esc(u.name)}</h2><span class="q q${u.quality}">Q${u.quality}</span><span class="sub">Kind ${u.type} · sub-kind ${u.sub} · item ${u.id}${u.use ? " · usable" : ""}</span></div>
+    <div class="grid"><div>
+      <div class="card"><h3>What it does now</h3>
+        ${u.effects.length ? `<ul class="fx">${u.effects.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : '<p class="lead">No use effect. This is a material or a quest/collection item.</p>'}
+        ${u.desc ? `<p class="lead">Description shown to players: ${esc(u.desc)}</p>` : ""}</div>
+      <div class="card"><h3>Requirements</h3><div class="field ${lv !== u.level ? "changed" : ""}"><div class="lab"><b>Level needed</b><small>Character level required to use it</small></div><input type="number" min="1" max="999" step="1" id="ulvl" value="${lv}">${lv !== u.level ? `<div class="was">Original: ${u.level} <button data-reset="_iLevelNeed">Reset</button></div>` : ""}</div>
+        <div class="field ${st !== u.stack ? "changed" : ""}"><div class="lab"><b>Stack limit</b><small>0 = game default</small></div><input type="number" min="0" max="999999" step="1" id="ustack" value="${st}">${st !== u.stack ? `<div class="was">Original: ${u.stack} <button data-reset="_iStackLimit">Reset</button></div>` : ""}</div>
+      </div></div></div></div></div>`;
+}
+function renderMain() {
+  if (TAB === "other") return renderOther();
+  if (TAB === "cards") return renderCards();
+  const m = $("#main");
+  if (!sel) {
+    m.innerHTML = `<div class="empty"><h2>Pick an item on the left</h2>
+      <ol><li>Search by name, or filter by type and quality.</li><li>Change the <b>minimum and maximum</b> of its base stats.</li><li>Check what players can roll in the box on the right.</li><li>Press <b>Apply to game</b>, then restart the server.</li></ol>
+      <p>Every item a player receives rolls a random value between your minimum and maximum. Set both the same for a fixed stat.</p>
+      <p>Changes affect items created after the restart. Items players already own keep the numbers they were created with.</p></div>`;
+    return;
+  }
+  const e = BYID.get(sel), ls = lines(e), q = e.quality;
+  const lvlChanged = level(e) !== e.level, slotChanged = slots(e) !== e.slots;
+  const linesChanged = !same(ls, baseLines(e));
+  m.innerHTML = `<div class="pad">
+    <div class="title"><h2>${esc(e.name)}</h2><span class="q q${q}">Q${q}</span><span class="sub">${esc(D.partNames[e.part] || "")} · item ${e.id} · equipment row ${e.equipId}</span></div>
+    <div class="grid"><div>
+      <div class="card"><h3>Base stats</h3><p class="lead">The guaranteed stats of this gear. Each item rolls a random value between Min and Max.</p>
+        <div class="stat head"><span>Stat</span><span>Min</span><span>Max</span><span></span></div>
+        <div id="lines">${ls.map((l, i) => statRow(e, l, i)).join("")}</div>
+        <div class="row2"><button id="addStat">+ Add a stat</button>
+          <span id="linesWas" class="was" ${linesChanged ? "" : "hidden"} style="grid-column:auto">Original: ${esc(lineText(baseLines(e)))} <button id="resetLines">Reset</button></span></div>
+      </div>
+      <div class="card"><h3>Requirements</h3>
+        <div class="field ${lvlChanged ? "changed" : ""}" data-box="lvl"><div class="lab"><b>Level needed</b><small>Character level required to wear it</small></div>
+          <input type="number" min="1" max="999" step="1" id="lvl" value="${level(e)}">${lvlChanged ? `<div class="was">Original: ${e.level} <button data-reset="_iLevelNeed">Reset</button></div>` : ""}</div>
+        <div class="field ${slotChanged ? "changed" : ""}" data-box="slot"><div class="lab"><b>Enchant slots</b><small>How many enchantments it can hold</small></div>
+          <input type="number" min="0" max="8" step="1" id="slot" value="${slots(e)}">${slotChanged ? `<div class="was">Original: ${e.slots} <button data-reset="_iEnchantSlot">Reset</button></div>` : ""}</div>
+      </div>
+      ${randomCard(e)}
+    </div>
+    <div class="preview"><div class="card"><h3>What players can roll</h3><p class="lead">Quality ${q} gear. The “usual” range is the middle 80% of rolls.</p><div id="cmp"></div></div></div>
+    </div></div>`;
+  renderPreview();
+}
+function poolText(group) {
+  const rows = D.groups[String(group)] || [], tot = rows.reduce((s, r) => s + r.w, 0) || 1;
+  return `<table class="ro"><tr><th>Possible extra stat</th><th>Value</th><th>Chance*</th></tr>${rows.map((r) => `<tr><td>${esc(attrName(r.a))}</td><td>${fmt(r.min)}${r.max !== r.min ? "–" + fmt(r.max) : ""}</td><td>${(100 * r.w / tot).toFixed(1)}%</td></tr>`).join("")}</table>`;
+}
+function randomCard(e) {
+  const cnt = (D.entryCounts[String(e.quality)] || []), ctot = cnt.reduce((s, c) => s + c.w, 0) || 1;
+  const cntTxt = cnt.length ? cnt.map((c) => `${c.n} extra line${c.n === 1 ? "" : "s"} (${Math.round(100 * c.w / ctot)}%)`).join(" or ") : "none";
+  const fixed = e.fixed.length ? `<p><b>Always has:</b> ${e.fixed.map((f) => `<span class="tag">${esc(attrName(f[0]))} ${fmt(f[1])}</span>`).join("")}</p>` : "";
+  const sp = e.special.length ? `<p><b>Chance of special effects:</b> ${e.special.map((s) => `<span class="tag">group ${s[0]}: ${(s[1] / 100).toFixed(s[1] % 100 ? 1 : 0)}%</span>`).join("")}</p>` : "";
+  const fs = e.fixedSpecial.length ? `<p><b>Always has effect IDs:</b> ${e.fixedSpecial.map((s) => `<span class="tag">${s}</span>`).join("")}</p>` : "";
+  const body = e.group ? `<p>Gets <b>${cntTxt}</b> from pool <b>${e.group}</b> ${e.appraise ? "when it is appraised" : "when it is created"}.</p>${poolText(e.group)}<div class="note">*Chance of being picked each draw. Extra stats are never repeated on one item.</div>` : "<p>This item has no random extra stats.</p>";
+  return `<div class="card"><h3>Random extra stats <span style="text-transform:none;letter-spacing:0">(view only for now)</span></h3><p class="lead">These come on top of the base stats, from shared pools, so this card is read-only for now.</p>${fixed}${body}${sp}${fs}</div>`;
+}
+function rollRange(q, lo, hi) {
+  const r = D.ratio[String(q)] || { mean: 5000, p10: 0, p90: 10000 };
+  const at = (ratio) => lo + Math.trunc(((hi - lo) * ratio) / 10000);
+  return { lo, hi, avg: lo + ((hi - lo) * r.mean) / 10000, p10: at(r.p10), p90: at(r.p90) };
+}
+function renderPreview() {
+  const e = BYID.get(sel), now = lines(e), was = baseLines(e);
+  const attrsAll = [...new Set([...was.map((x) => x[0]), ...now.map((x) => x[0])])];
+  const show = (x, a) => !x ? "–" : `${fmt(x.lo)}${x.hi !== x.lo ? " – " + fmt(x.hi) : ""}`;
+  const rows = attrsAll.map((a) => {
+    const w = was.find((x) => x[0] === a), n = now.find((x) => x[0] === a);
+    const rw = w && rollRange(e.quality, w[1], w[2]), rn = n && rollRange(e.quality, n[1], n[2]);
+    const dir = rw && rn ? (rn.avg > rw.avg ? "up" : rn.avg < rw.avg ? "down" : "") : "";
+    const sub = (r) => r && r.hi !== r.lo ? `<small>usual ${fmt(r.p10)}–${fmt(r.p90)} · avg ${fmt(r.avg)}</small>` : "";
+    return `<tr><td>${esc(attrName(a))}</td><td>${show(rw, a)}${sub(rw)}</td><td class="${dir}"><b>${show(rn, a)}</b>${sub(rn)}</td></tr>`;
+  }).join("");
+  $("#cmp").innerHTML = rows ? `<table class="cmp"><tr><th></th><th>Original</th><th>Now</th></tr>${rows}</table>` : '<div class="note">No base stats.</div>';
+}
+
+// ---------- editing
+let pending = new Map();
+function queueSave(key, items) { pending.set(key, items); clearTimeout(queueSave.t); queueSave.t = setTimeout(flush, 350); }
+async function flush() {
+  const items = [].concat(...pending.values()); pending = new Map();
+  if (!items.length) return;
+  try { await api("/api/items/set-many", { items }); await reloadOverrides(); }
+  catch (e) { toast(e.message, true); await reloadOverrides(); renderMain(); }
+}
+async function reloadOverrides() { const d = await api("/api/items/state"); OV = d.overrides; META = d.status; renderStatus(); renderList(false); }
+function setLocal(table, row, field, value, orig) {
+  OV[table] = OV[table] || {}; OV[table][row] = OV[table][row] || {};
+  if (value === null || same(value, orig)) delete OV[table][row][field]; else OV[table][row][field] = value;
+  if (!Object.keys(OV[table][row]).length) delete OV[table][row];
+}
+function readLines() {
+  const out = [], seen = new Set(); let err = null;
+  document.querySelectorAll("#lines .stat").forEach((row) => {
+    const a = Number(row.querySelector('[data-k="a"]').value), lo = row.querySelector('[data-k="min"]').value, hi = row.querySelector('[data-k="max"]').value;
+    const msg = row.querySelector(".msg"); let m = "";
+    const nlo = Number(lo), nhi = Number(hi);
+    if (lo === "" || hi === "" || !Number.isInteger(nlo) || !Number.isInteger(nhi)) m = "Enter whole numbers for Min and Max.";
+    else if (nlo > nhi) m = "Min is higher than Max.";
+    else if (seen.has(a)) m = attrName(a) + " is listed twice. Remove one.";
+    seen.add(a);
+    row.classList.toggle("bad", !!m); msg.hidden = !m; msg.textContent = m;
+    if (m) err = err || m; else out.push([a, nlo, nhi]);
+  });
+  return err ? null : out;
+}
+function onLines() {
+  const e = BYID.get(sel), ls = readLines();
+  document.querySelectorAll("#lines .stat").forEach((row, i) => {
+    const a = Number(row.querySelector('[data-k="a"]').value), o = baseLines(e).find((x) => x[0] === a);
+    row.classList.toggle("changed", !o || String(o[1]) !== row.querySelector('[data-k="min"]').value || String(o[2]) !== row.querySelector('[data-k="max"]').value);
+  });
+  if (!ls) return;                                    // incomplete: keep the last good saved value
+  setLocal("EquipConfig", e.equipId, "_kBasicAttribute", ls, baseLines(e));
+  $("#linesWas").hidden = same(ls, baseLines(e));
+  renderPreview(); renderList(false);
+  queueSave("lines" + e.equipId, [{ table: "EquipConfig", row: e.equipId, field: "_kBasicAttribute", value: ls }]);
+}
+function onInt(input, field, orig) {
+  const e = CUR(), n = Number(input.value);
+  if (input.value === "" || !Number.isInteger(n)) return;
+  const box = input.closest(".field"), changed = n !== orig;
+  box.classList.toggle("changed", changed);
+  let w = box.querySelector(":scope > .was");
+  if (!changed) { if (w) w.remove(); } else {
+    if (!w) { w = document.createElement("div"); w.className = "was"; box.appendChild(w); }
+    w.innerHTML = `Original: ${orig} <button data-reset="${field}">Reset</button>`;
+  }
+  setLocal("ItemConfig", e.id, field, n, orig); renderList(false);
+  queueSave(field + e.id, [{ table: "ItemConfig", row: e.id, field, value: n }]);
+}
+async function resetField(table, row, field) {
+  try { await api("/api/items/set-many", { items: [{ table, row, field, value: null }] }); await reloadOverrides(); renderMain(); } catch (e) { toast(e.message, true); }
+}
+
+// ---------- cards
+const pairs = (table, row) => (OV[table] && OV[table][row] && OV[table][row][PFIELD[table]]) || BASEP[table][row] || [];
+const lineTextP = (ls) => ls.length ? ls.map(([a, v]) => attrName(a) + " " + fmt(v)).join(", ") : "no stats";
+const PV = { star: 0, level: 0 };
+function plRow(table, row, ln, i) {
+  const [a, v] = ln, orig = (BASEP[table][row] || []).find((x) => x[0] === a), changed = !orig || orig[1] !== v;
+  return `<div class="pl ${changed ? "changed" : ""}" data-i="${i}"><select data-k="a">${attrOptions(a)}</select>
+    <input type="number" step="1" data-k="v" value="${v}" aria-label="Value"><button class="x" data-pdel="${i}" title="Remove this stat">✕</button>
+    ${isPct(a) ? `<div class="hint">Percent stat: 100 = 1%, so ${fmt(v)} means ${fmt(v / 100)}%.</div>` : ""}<div class="msg" hidden></div></div>`;
+}
+function plBlock(table, row) {
+  const ls = pairs(table, row), was = BASEP[table][row] || [];
+  return `<div class="plines" data-table="${table}" data-row="${row}"><div class="pl-rows">${ls.length ? ls.map((l, i) => plRow(table, row, l, i)).join("") : '<div class="empty-line">No stats</div>'}</div>
+    <div class="row2"><button class="pl-add">+ Add a stat</button><span class="was plwas" ${same(ls, was) ? "hidden" : ""} style="grid-column:auto">Original: ${esc(lineTextP(was))} <button class="pl-reset">Reset</button></span></div></div>`;
+}
+function readPairs(block) {
+  const out = [], seen = new Set(); let err = null;
+  block.querySelectorAll(".pl").forEach((row) => {
+    const a = Number(row.querySelector('[data-k="a"]').value), vs = row.querySelector('[data-k="v"]').value, n = Number(vs), msg = row.querySelector(".msg");
+    let m = "";
+    if (vs === "" || !Number.isInteger(n)) m = "Enter a whole number.";
+    else if (seen.has(a)) m = attrName(a) + " is listed twice. Remove one.";
+    seen.add(a); row.classList.toggle("bad", !!m); msg.hidden = !m; msg.textContent = m;
+    if (m) err = err || m; else out.push([a, n]);
+  });
+  return err ? null : out;
+}
+function afterPairs(block, ls) {
+  const table = block.dataset.table, row = block.dataset.row, base = BASEP[table][row] || [];
+  setLocal(table, row, PFIELD[table], ls, base);
+  const w = block.querySelector(".plwas"); if (w) w.hidden = same(ls, base);
+  const sm = block.closest("details") && block.closest("details").querySelector("summary small");
+  if (sm) sm.textContent = lineTextP(ls) + sm.dataset.cost;
+  renderCardPreview(); renderList(false);
+  queueSave(table + row, [{ table, row, field: PFIELD[table], value: ls }]);
+}
+function onPairs(block) {
+  const ls = readPairs(block), base = BASEP[block.dataset.table][block.dataset.row] || [];
+  block.querySelectorAll(".pl").forEach((r) => {
+    const a = Number(r.querySelector('[data-k="a"]').value), o = base.find((x) => x[0] === a);
+    r.classList.toggle("changed", !o || String(o[1]) !== r.querySelector('[data-k="v"]').value);
+  });
+  if (ls) afterPairs(block, ls);
+}
+function replaceBlock(block, ls) {      // rebuild one stat block after add / remove / stat change, then save
+  const table = block.dataset.table, row = block.dataset.row;
+  setLocal(table, row, PFIELD[table], ls, BASEP[table][row] || []);
+  const tmp = document.createElement("div"); tmp.innerHTML = plBlock(table, row);
+  const nb = tmp.firstElementChild; block.replaceWith(nb); afterPairs(nb, ls);
+}
+function initPV(c) {
+  const last = c.tiers[c.tiers.length - 1], ups = D.upgrades[c.part + ":" + c.quality] || [];
+  PV.star = last.tier; PV.level = last.cap || (ups.length ? ups[ups.length - 1].level : 0);
+}
+function totals(c, star, level, orig) {
+  const tier = c.tiers.find((t) => t.tier === star) || c.tiers[0];
+  const up = (D.upgrades[c.part + ":" + c.quality] || []).find((u) => u.level === level);
+  const get = (table, r) => (orig ? BASEP[table][r] || [] : pairs(table, r)), m = {};
+  get("CardConfig", tier.row).forEach(([a, v]) => (m[a] = (m[a] || 0) + v));
+  if (up) get("CardUpgradeConfig", up.row).forEach(([a, v]) => (m[a] = (m[a] || 0) + v));
+  return m;
+}
+function renderCardPreview() {
+  const box = $("#cmp"); if (!box || TAB !== "cards") return;
+  const c = CBYID.get(sel), w = totals(c, PV.star, PV.level, true), n = totals(c, PV.star, PV.level, false);
+  const ids = [...new Set([...Object.keys(w), ...Object.keys(n)])].map(Number);
+  box.innerHTML = ids.length ? `<table class="cmp"><tr><th></th><th>Original</th><th>Now</th></tr>${ids.map((a) => {
+    const x = w[a] || 0, y = n[a] || 0;
+    return `<tr><td>${esc(attrName(a))}</td><td>${fmt(x)}</td><td class="${y > x ? "up" : y < x ? "down" : ""}"><b>${fmt(y)}</b></td></tr>`;
+  }).join("")}</table>` : '<div class="note">No stats at this star and level.</div>';
+}
+function renderCards() {
+  const m = $("#main");
+  if (!sel) {
+    m.innerHTML = `<div class="empty"><h2>Pick a card on the left</h2>
+      <ol><li>Each card has 4 <b>stars</b>. Edit the stats it gives at each star.</li><li>Cards also gain <b>level-up bonuses</b>. Those are shared by every card of the same slot and quality.</li><li>Check the total on the right, then press <b>Apply to game</b> and restart the server.</li></ol>
+      <p>Card stats are applied live: they change for every player who has this card after the restart, including cards they already own.</p></div>`;
+    return;
+  }
+  const c = CBYID.get(sel), key = c.part + ":" + c.quality, ups = D.upgrades[key] || [], users = D.upgradeUsers[key] || 0;
+  const copies = (t) => (t.cost || []).map(([i, n]) => String(i) === c.id ? `${n} cop${n === 1 ? "y" : "ies"} of this card` : `item ${i} ×${n}`).join(", ");
+  const tiersHtml = c.tiers.map((t) => `<div class="card"><h3>Star ${t.tier}${t.tier === 0 ? " (base)" : ""}</h3>
+      <div class="facts"><span class="tag">${t.cap ? "Level cap " + t.cap : "No level cap at this star"}</span>
+        ${copies(t) ? `<span class="tag">Star-up cost: ${esc(copies(t))}</span>` : ""}
+        ${(t.skills || []).map((id) => `<span class="tag">Special effect ${id} (view only)</span>`).join("")}
+        ${t.flash ? '<span class="tag">Has a flash-card bonus (view only)</span>' : ""}</div>
+      ${plBlock("CardConfig", t.row)}</div>`).join("");
+  const upHtml = ups.map((u) => {
+    const cost = (u.cost || []).map(([i, n]) => `${fmt(n)} × item ${i}`).join(", "), costTxt = cost ? " · cost " + cost : "";
+    return `<details class="lv" ${OV.CardUpgradeConfig[u.row] ? "open" : ""}><summary><b>Level ${u.level}</b><small data-cost="${esc(costTxt)}">${esc(lineTextP(pairs("CardUpgradeConfig", u.row)) + costTxt)}</small></summary>${plBlock("CardUpgradeConfig", u.row)}</details>`;
+  }).join("");
+  const levelsSel = ups.map((u) => `<option value="${u.level}" ${u.level === PV.level ? "selected" : ""}>Level ${u.level}</option>`).join("");
+  m.innerHTML = `<div class="pad">
+    <div class="title"><h2>${esc(c.name)}</h2><span class="q q${c.quality}">Q${c.quality}</span><span class="sub">${esc(D.cardParts[c.part] || "")} slot · card ${c.id}</span></div>
+    <div class="grid"><div>${tiersHtml}
+      <div class="card"><h3>Level-up bonuses (shared)</h3>
+        <div class="warnbox"><b>Shared:</b> ${esc(D.cardParts[c.part] || "")} cards of quality ${c.quality} — <b>${users} card${users === 1 ? "" : "s"}</b> — all use these numbers. Editing a level here changes all of them. The stats at each level are totals for that level, not extra on top of lower levels.</div>
+        ${upHtml || '<div class="empty-line">No level-up table for this slot and quality.</div>'}</div>
+    </div>
+    <div class="preview"><div class="card"><h3>What this card gives</h3><p class="lead">Star stats plus the level-up bonus at the chosen level.</p>
+      <div class="sel2"><select id="pvStar">${c.tiers.map((t) => `<option value="${t.tier}" ${t.tier === PV.star ? "selected" : ""}>Star ${t.tier}</option>`).join("")}</select>
+        <select id="pvLevel">${levelsSel}</select></div><div id="cmp"></div></div></div>
+    </div></div>`;
+  renderCardPreview();
+}
+
+// ---------- dialogs & actions
+function confirmDlg(title, text, okLabel, onOk, danger) {
+  const d = $("#dlg");
+  d.innerHTML = `<h3>${esc(title)}</h3><p>${text}</p><div class="row"><button id="dNo">Cancel</button><button class="primary" id="dYes" ${danger ? 'style="background:var(--bad);border-color:var(--bad)"' : ""}>${esc(okLabel)}</button></div>`;
+  d.showModal();
+  $("#dNo").onclick = () => d.close();
+  $("#dYes").onclick = async () => { d.close(); try { await onOk(); } catch (e) { toast(e.message, true); } };
+}
+async function reload() {
+  const d = await api("/api/items/data"); D = d; OV = d.overrides; META = d.status; BYID.clear();
+  D.equipment.forEach((e) => BYID.set(e.id, e));
+  CBYID.clear(); D.cards.forEach((c) => CBYID.set(c.id, c));
+  UBYID.clear(); D.usable.forEach((u) => UBYID.set(u.id, u));
+  D.cards.forEach((c) => c.tiers.forEach((t) => (BASEP.CardConfig[t.row] = t.lines)));
+  Object.values(D.upgrades).forEach((us) => us.forEach((u) => (BASEP.CardUpgradeConfig[u.row] = u.lines)));
+  buildFilters(); renderStatus(); renderList(false);
+  if (sel && !(TAB === "cards" ? CBYID : TAB === "other" ? UBYID : BYID).has(sel)) sel = null;
+  renderMain();
+}
+
+document.addEventListener("click", async (e) => {
+  const t = e.target;
+  if (!t.closest("#menu")) $("#menu").classList.remove("open");
+  const tab = t.closest(".tab[data-tab]");
+  if (tab && tab.dataset.tab !== TAB) {
+    flush(); SELS[TAB] = sel; TAB = tab.dataset.tab; sel = SELS[TAB];
+    document.querySelectorAll(".tab[data-tab]").forEach((x) => x.classList.toggle("on", x.dataset.tab === TAB));
+    $("#q").value = ""; $("#onlyEdited").checked = false; buildFilters();
+    if (TAB === "cards" && sel) initPV(CBYID.get(sel));
+    renderList(false); return renderMain();
+  }
+  const pb = t.closest(".plines");
+  if (pb) {
+    const table = pb.dataset.table, row = pb.dataset.row;
+    if (t.classList.contains("pl-add")) {
+      const cur = readPairs(pb) || pairs(table, row), have = new Set(cur.map((x) => x[0]));
+      const next = [103, 104, 105, 106, 101, 1, 2, 3, 4, 5, 6].find((a) => !have.has(a)) || Object.keys(D.attrs).map(Number).find((a) => !have.has(a));
+      if (cur.length >= 20) return toast("At most 20 stats per row.", true);
+      return replaceBlock(pb, cur.concat([[next, 0]]));
+    }
+    if (t.dataset.pdel !== undefined) {
+      const cur = readPairs(pb); if (!cur) return toast("Fix the highlighted line first.", true);
+      return replaceBlock(pb, cur.filter((_, i) => i !== Number(t.dataset.pdel)));
+    }
+    if (t.classList.contains("pl-reset")) return resetField(table, row, PFIELD[table]);
+  }
+  const it = t.closest(".item[data-id]"); if (it) return select(it.dataset.id);
+  if (TAB === "other" && t.dataset.reset && UBYID.has(sel)) return resetField("ItemConfig", sel, t.dataset.reset);
+  if (t.closest("#more")) return renderList(true);
+  const it2 = BYID.get(sel);
+  if (t.id === "addStat" && it2) {
+    const cur = readLines() || lines(it2), have = new Set(cur.map((x) => x[0]));
+    const next = [1, 2, 3, 4, 5, 6, 103, 104, 105, 106, 101].find((a) => !have.has(a)) || Object.keys(D.attrs).map(Number).find((a) => !have.has(a));
+    const nl = cur.concat([[next, 0, 0]]);
+    if (nl.length > 20) return toast("An item can have at most 20 base stats.", true);
+    OV.EquipConfig[it2.equipId] = OV.EquipConfig[it2.equipId] || {}; OV.EquipConfig[it2.equipId]._kBasicAttribute = nl;
+    $("#lines").innerHTML = nl.map((l, i) => statRow(it2, l, i)).join(""); return onLines();
+  }
+  if (t.dataset.del !== undefined && it2) {
+    const cur = readLines(); if (!cur) return toast("Fix the highlighted line first.", true);
+    const nl = cur.filter((_, i) => i !== Number(t.dataset.del));
+    $("#lines").innerHTML = nl.map((l, i) => statRow(it2, l, i)).join(""); return onLines();
+  }
+  if (t.id === "resetLines" && it2) return resetField("EquipConfig", it2.equipId, "_kBasicAttribute");
+  if (t.dataset.reset && it2) return resetField("ItemConfig", it2.id, t.dataset.reset);
+});
+document.addEventListener("input", (e) => {
+  const t = e.target, it = BYID.get(sel);
+  if (TAB === "other") { const u = UBYID.get(sel); if (u && t.id === "ulvl") onInt(t, "_iLevelNeed", u.level); if (u && t.id === "ustack") onInt(t, "_iStackLimit", u.stack); return; }
+  if (t.closest(".plines")) return onPairs(t.closest(".plines"));
+  if (t.closest("#lines")) return onLines();
+  if (t.id === "lvl" && it) onInt(t, "_iLevelNeed", it.level);
+  if (t.id === "slot" && it) onInt(t, "_iEnchantSlot", it.slots);
+});
+document.addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.closest(".plines") && t.dataset.k === "a") { const b = t.closest(".plines"), cur = readPairs(b); if (cur) replaceBlock(b, cur); return; }
+  if (t.id === "pvStar") { PV.star = Number(t.value); return renderCardPreview(); }
+  if (t.id === "pvLevel") { PV.level = Number(t.value); return renderCardPreview(); }
+  if (t.closest("#lines") && t.dataset.k === "a") { const it = BYID.get(sel); const cur = readLines(); if (cur) { $("#lines").innerHTML = cur.map((l, i) => statRow(it, l, i)).join(""); } onLines(); }
+  if (t.id === "part" || t.id === "qual" || t.id === "onlyEdited") renderList(false);
+});
+$("#q").addEventListener("input", () => renderList(false));
+$("#menuBtn").onclick = (e) => { e.stopPropagation(); $("#menu").classList.toggle("open"); };
+$("#exportBtn").onclick = async () => {
+  const r = await fetch("/api/items/export"); const txt = await r.text();
+  try { await navigator.clipboard.writeText(txt); toast("Change list copied. Paste it into an issue or Discord."); } catch { toast("Could not copy", true); }
+};
+$("#discardBtn").onclick = () => { $("#menu").classList.remove("open"); confirmDlg("Discard all your item edits?", "This clears your item edit list. It does not change the game until you press Apply (then Apply puts the original values back).", "Discard edits", async () => { await api("/api/items/reset-all", {}); await reload(); toast("Edits cleared"); }, true); };
+$("#restoreBtn").onclick = () => { $("#menu").classList.remove("open"); confirmDlg("Put the untouched original item files back?", "The item files (ItemConfig, EquipConfig, CardConfig, CardUpgradeConfig) in the game folder are replaced by the original copies. Your edit list is kept, so you can Apply again later. A backup of the current files is made first.", "Restore original", async () => { await api("/api/items/restore-original", {}); await reload(); toast("Originals restored. Restart the server."); }); };
+$("#applyBtn").onclick = async () => { await flush(); confirmDlg("Apply your item edits to the game?",
+  `This writes <b>${META.changedRows}</b> edited row(s) into <code>data\\config</code> (only the files you edited: <code>EquipConfig</code>, <code>ItemConfig</code>, <code>CardConfig</code> or <code>CardUpgradeConfig</code>). A backup is made first. ${META.serverRunning ? "<br><br><b>The server seems to be running.</b> Restart it afterwards to load the changes." : "Start or restart the server afterwards to load them."}<br><br>Equipment stat ranges only affect items created after the restart; card stats apply to all cards.`,
+  "Apply", async () => { await flush(); const r = await api("/api/items/apply", {}); META = r.meta; await reload(); toast(`Applied ${r.fields} value(s) in ${r.rows} row(s). Restart the server. Card tooltips: copy ${r.overlay} to <client>\\ro3emu\\custom\\`); }); };
+$("#changeHome").onclick = () => {
+  const d = $("#dlg");
+  d.innerHTML = `<h3>Game folder</h3><p>The folder that contains <code>data\\config</code> (for example your RO3 OFFICIAL SERVER FILES V2 folder). This also changes it for the Skills page.</p><input id="homeIn" style="width:100%" value="${esc(META.home)}"><div class="row"><button id="hNo">Cancel</button><button class="primary" id="hYes">Use this folder</button></div>`;
+  d.showModal(); $("#hNo").onclick = () => d.close();
+  $("#hYes").onclick = async () => { try { await api("/api/set-home", { home: $("#homeIn").value.trim() }); d.close(); sel = null; await reload(); toast("Folder changed"); } catch (e) { toast(e.message, true); } };
+};
+
+reload().catch((e) => { $("#main").innerHTML = `<div class="empty"><h2>Could not load</h2><p>${esc(e.message)}</p><p>Use “Change folder” to point the editor at the folder that contains <code>data\\config</code>.</p></div>`; });
+</script>
+</body>
+</html>

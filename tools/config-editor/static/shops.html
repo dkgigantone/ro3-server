@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RO3 Plus - Shop Editor</title>
+<style>
+:root{
+  --bg:#f4f6fa; --panel:#ffffff; --panel2:#f0f3f8; --line:#dfe5ee; --text:#1b2433; --muted:#6a778c;
+  --accent:#3b6df0; --accent-d:#2c55c7; --ok:#18a56b; --warn:#c98a0b; --bad:#d6404f; --chip:#e8eefc; --edit:#fff6dc;
+  --shadow:0 1px 2px rgba(20,30,50,.06),0 4px 14px rgba(20,30,50,.06);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0e1420; --panel:#151d2c; --panel2:#1b2638; --line:#27344b; --text:#e6ecf6; --muted:#8c9bb3;
+  --accent:#6b93ff; --accent-d:#5a82f0; --ok:#3ccf91; --warn:#f0b64a; --bad:#ff7380; --chip:#22314f; --edit:#3a3216;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:7px 14px;border-radius:8px}
+button:hover{background:var(--panel2)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{background:var(--accent-d)}
+button.primary:disabled{opacity:.5;cursor:default}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--text);background:var(--panel2)}
+input,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+header .path{color:var(--muted);font-size:12px;max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .spacer{flex:1}
+nav.top{display:flex;gap:4px;background:var(--panel2);padding:3px;border-radius:10px}
+nav.top a{padding:5px 14px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:600}
+nav.top a.on{background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+.pill{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)}
+details.more{position:relative}
+details.more summary{list-style:none;cursor:pointer;padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+details.more summary::-webkit-details-marker{display:none}
+details.more .menu{position:absolute;right:0;top:110%;z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;display:grid;gap:4px;min-width:260px}
+details.more .menu button{text-align:left;border-color:transparent}
+.banner{margin:12px 20px 0;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.banner.warn{border-color:var(--warn)} .banner.bad{border-color:var(--bad)} .banner.ok{border-color:var(--ok)}
+.banner .grow{flex:1}
+.tabs{display:flex;gap:2px;padding:10px 20px 0;flex-wrap:wrap}
+.tabs .tab{padding:8px 18px;border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;background:var(--panel2);color:var(--muted);font-weight:600;cursor:pointer}
+.tabs .tab.on{background:var(--panel);color:var(--text)}
+.tabs .tab small{font-weight:400;margin-left:6px}
+.classes{display:flex;gap:8px;flex-wrap:wrap;padding:12px 20px;margin:0 20px;background:var(--panel);border:1px solid var(--line);border-top:0;align-items:center}
+.chip{padding:5px 12px;border-radius:99px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:13px}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip small{opacity:.75;margin-left:4px}
+.hint{color:var(--muted);font-size:12px}
+main{flex:1;overflow:auto;padding:0 20px 20px;min-height:0}
+.card{background:var(--panel);border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;box-shadow:var(--shadow);overflow:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--panel2);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+td.num input{width:100%;max-width:120px;text-align:right}
+td.name{white-space:normal;min-width:180px}
+td.dim{color:var(--muted)}
+td.ed input,td.ed select{background:var(--edit);border-color:var(--warn)}
+tr.look td.sells{color:var(--muted)}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;background:var(--chip);color:var(--muted);margin-left:6px}
+.warnicon{color:var(--warn);font-weight:700;cursor:help}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.modal{position:fixed;inset:0;background:rgba(10,15,25,.55);display:none;align-items:center;justify-content:center;z-index:20}
+.modal.on{display:flex}
+.modal .box{background:var(--panel);border-radius:14px;box-shadow:var(--shadow);width:min(860px,94vw);max-height:86vh;display:flex;flex-direction:column}
+.modal .box h2{margin:0;padding:14px 18px;font-size:16px;border-bottom:1px solid var(--line)}
+.modal .body{padding:12px 18px;overflow:auto;flex:1}
+.modal .foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+.err{color:var(--bad);margin:2px 0}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;padding:9px 16px;border-radius:10px;box-shadow:var(--shadow);display:none;z-index:30;max-width:80vw}
+.toast.ok{background:var(--ok)}
+</style>
+</head>
+<body>
+<header>
+  <h1>RO3 Plus Config Editor</h1>
+  <nav class="top"><a href="/">Skills</a><a href="/items">Items</a><a href="/shops" class="on">Shops</a></nav>
+  <span class="path" id="home"></span>
+  <span class="pill" id="pill">...</span>
+  <span class="spacer"></span>
+  <button id="btnExport">Export CSV</button>
+  <button id="btnImport">Import CSV...</button>
+  <input type="file" id="file" accept=".csv,text/csv" hidden>
+  <button class="primary" id="btnApply" disabled>Apply to game</button>
+  <details class="more"><summary>More</summary><div class="menu">
+    <button id="btnRestore">Put the untouched original back</button>
+    <button id="btnDiscard">Discard all my edits</button>
+    <button id="btnRebase">Use current file as new original</button>
+  </div></details>
+</header>
+<div id="banner"></div>
+<div class="tabs" id="groups"></div>
+<div class="classes" id="classes"></div>
+<main><div class="card" id="card"></div></main>
+
+<div class="modal" id="modal"><div class="box">
+  <h2 id="mTitle">Import preview</h2>
+  <div class="body" id="mBody"></div>
+  <div class="foot"><button id="mCancel">Cancel</button><button class="primary" id="mApply">Apply these changes</button></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const K = {num:"_iPurchaseNum", per:"_iPurchaseTimesLimit", pair:"_kItemPerPrice", item:"_iItemId"};
+let D = null, OV = {}, META = null, group = 0, cls = null, csvText = "";
+
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function toast(msg, ok){ const t=$("toast"); t.textContent=msg; t.className="toast"+(ok?" ok":""); t.style.display="block"; clearTimeout(toast.h); toast.h=setTimeout(()=>t.style.display="none", ok?3500:7000); }
+async function api(path, body){
+  const r = await fetch(path, body===undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  const t = await r.text(); let j; try{ j=JSON.parse(t);}catch(e){ j=null; }
+  if(!r.ok) throw new Error((j&&j.error)||t||("HTTP "+r.status));
+  return j ?? t;
+}
+function eff(r){
+  const o = OV[String(r.id)] || {};
+  const pair = o[K.pair] || [r.cur, r.price];
+  return {num:o[K.num] ?? r.num, per:o[K.per] ?? r.per, cur:pair[0], price:pair[1], itemId:o[K.item] ?? r.itemId,
+          edNum:K.num in o, edPer:K.per in o, edCur:!!o[K.pair] && pair[0]!==r.cur, edPrice:!!o[K.pair] && pair[1]!==r.price, edItem:K.item in o};
+}
+function pays(price, disc){ return disc>0 ? Math.ceil(price*disc/10000) : price; }
+const cname = id => { const c=(D.currencies.find(c=>c.id===id)); return c ? c.name : "#"+id; };
+
+async function load(){
+  D = await api("/api/shops/data");
+  OV = (D.overrides.ShopCommodityConfig) || {};
+  META = D.status;
+  if(group >= D.groups.length) group = 0;
+  render();
+}
+function renderStatus(){
+  const m = META;
+  $("home").textContent = m.home; $("home").title = m.home;
+  const pill = $("pill");
+  const n = m.changedRows;
+  pill.textContent = m.fileStatus==="external" ? "file changed outside" : n===0 ? (m.fileStatus==="applied" ? "originals differ (applied)" : "no edits") : (m.inSync ? n+" edited, applied" : n+" edited, not applied");
+  pill.className = "pill " + (m.fileStatus==="external" || (n>0 && !m.inSync) ? "warn" : "ok");
+  $("btnApply").disabled = !(n>0 && !m.inSync) && !(n===0 && m.fileStatus==="applied");
+  let html = "";
+  if(m.fileStatus==="external") html += `<div class="banner bad"><span class="grow">ShopCommodityConfig.json was changed outside this tool. Apply is paused so nothing is overwritten.</span><button id="btnRebase2">Use current file as new original</button></div>`;
+  else if(n>0 && m.inSync) html += `<div class="banner ok"><span class="grow">Applied. ${m.serverRunning ? "The server is running: restart it" : "Start (or restart) the server"} so it loads the new shop data.</span></div>`;
+  else if(n>0) html += `<div class="banner warn"><span class="grow">${n} row${n>1?"s":""} edited. Press <b>Apply to game</b>, then restart the server.</span></div>`;
+  $("banner").innerHTML = html;
+  const b2 = $("btnRebase2"); if(b2) b2.onclick = rebase;
+}
+function render(){
+  renderStatus();
+  $("groups").innerHTML = D.groups.map((g,i)=>`<div class="tab ${i===group?"on":""}" data-g="${i}">${esc(g.name)}<small>${g.classes.reduce((a,c)=>a+c.rows.length,0)}</small></div>`).join("");
+  document.querySelectorAll("#groups .tab").forEach(el=>el.onclick=()=>{ group=+el.dataset.g; cls=null; render(); });
+  const g = D.groups[group];
+  if(!g.classes.find(c=>c.id===cls)) cls = g.classes.length ? g.classes[0].id : null;
+  $("classes").innerHTML = g.classes.map(c=>`<span class="chip ${c.id===cls?"on":""}" data-c="${c.id}">${esc(c.name)}<small>${c.id} · ${c.rows.length}</small></span>`).join("")
+    + `<span class="hint" id="hint"></span>`;
+  document.querySelectorAll("#classes .chip").forEach(el=>el.onclick=()=>{ cls=+el.dataset.c; render(); });
+  const c = g.classes.find(c=>c.id===cls);
+  $("hint").textContent = c ? [c.hint, c.display.length ? "shop shows: "+c.display.map(cname).join(", ") : ""].filter(Boolean).join(" · ") : "";
+  renderTable(c);
+}
+function renderTable(c){
+  const card = $("card");
+  if(!c || !c.rows.length){ card.innerHTML = `<div class="empty">No rows in the data for this tab.</div>`; return; }
+  const per = D.periods;
+  const rows = c.rows.map(r=>{
+    const e = eff(r), look = !!r.look;
+    const perOpts = Object.keys(per).map(Number).concat(per[e.per]===undefined?[e.per]:[]).sort((a,b)=>a-b)
+      .map(p=>`<option value="${p}" ${p===e.per?"selected":""}>${p} ${esc(per[p]||"other")}</option>`).join("");
+    const curs = D.currencies.concat(D.currencies.some(x=>x.id===e.cur)?[]:[{id:e.cur,name:"#"+e.cur}]);
+    const curOpts = curs.map(x=>`<option value="${x.id}" ${x.id===e.cur?"selected":""}>${esc(x.name)} (${x.id})</option>`).join("");
+    const warn = (e.num>0 && e.per===0) ? ` <span class="warnicon" title="A limit is set but the period is 'none'. Pick a period (4 = lifetime, 2 = weekly...).">!</span>` : "";
+    const paid = pays(e.price, r.disc);
+    return `<tr class="${look?"look":""}" data-id="${r.id}">
+      <td class="dim">${r.id}</td>
+      <td class="num sells ${e.edItem?"ed":""}">${look ? `${r.look}<span class="tag">look</span>` : `<input type="number" data-f="itemId" value="${e.itemId}" min="1">`}</td>
+      <td class="name">${esc(r.name) || '<span class="hint">(no English name)</span>'}</td>
+      <td class="num ${e.edNum?"ed":""}"><input type="number" data-f="num" value="${e.num}" min="0" max="${D.maxLimit}" title="0 = no limit">${warn}</td>
+      <td class="${e.edPer?"ed":""}"><select data-f="per">${perOpts}</select></td>
+      <td class="${e.edCur?"ed":""}"><select data-f="cur">${curOpts}</select></td>
+      <td class="num ${e.edPrice?"ed":""}"><input type="number" data-f="price" value="${e.price}" min="1" max="${D.maxPrice}"></td>
+      <td class="dim">${r.disc>0 ? (r.disc/100)+"%" : ""}</td>
+      <td class="dim" title="List price x discount, rounded up (what the server charges)">${r.disc>0 ? paid.toLocaleString() : ""}</td>
+      <td><button class="ghost" data-reset="1" title="Back to the original values">&#8634;</button></td></tr>`;
+  }).join("");
+  card.innerHTML = `<table><thead><tr><th>ID</th><th>Item / look</th><th>English name</th><th>Limit</th><th>Period</th><th>Currency</th><th>Price</th><th>Disc.</th><th>Pays</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  card.querySelectorAll("[data-f]").forEach(el=>el.onchange=()=>edit(+el.closest("tr").dataset.id, el.dataset.f, el));
+  card.querySelectorAll("[data-reset]").forEach(el=>el.onclick=()=>resetRow(+el.closest("tr").dataset.id));
+}
+async function post(items){
+  const res = await api("/api/shops/set-many", {items});
+  OV = res.overrides.ShopCommodityConfig || {}; META = res.meta;
+}
+async function edit(id, field, el){
+  const raw = el.value.trim();
+  const value = (field==="per"||field==="cur") ? Number(raw) : (raw==="" ? null : Number(raw));
+  try{
+    if(value!==null && !Number.isInteger(value)) throw new Error("Please enter a whole number.");
+    await post([{row:id, field, value}]);
+  }catch(e){ toast(e.message); }
+  render();
+}
+async function resetRow(id){
+  const look = !!findRow(id).look;
+  const fields = ["num","per","cur","price"].concat(look ? [] : ["itemId"]);
+  try{ await post(fields.map(f=>({row:id, field:f, value:null}))); }
+  catch(e){ toast(e.message); }
+  render();
+}
+function findRow(id){ for(const g of D.groups) for(const c of g.classes) for(const r of c.rows) if(r.id===id) return r; return null; }
+
+$("btnApply").onclick = async ()=>{
+  $("btnApply").disabled = true;
+  try{ const r = await api("/api/shops/apply", {}); META = r.meta; toast("Applied "+r.rows+" row"+(r.rows===1?"":"s")+" ("+r.fields+" fields). Backup "+r.backup+". Restart the server.", true); }
+  catch(e){ toast(e.message); }
+  render();
+};
+async function rebase(){ if(!confirm("Use the current ShopCommodityConfig.json as the new untouched original? Your edits are kept and laid on top of it.")) return;
+  try{ await api("/api/shops/rebaseline", {}); await load(); toast("Current file is now the original.", true);}catch(e){toast(e.message);} }
+$("btnRebase").onclick = rebase;
+$("btnRestore").onclick = async ()=>{ if(!confirm("Put the untouched original ShopCommodityConfig.json back in the game folder? (A backup is made first. Your edits stay saved.)")) return;
+  try{ await api("/api/shops/restore-original", {}); await load(); toast("Original restored. Restart the server.", true);}catch(e){toast(e.message);} };
+$("btnDiscard").onclick = async ()=>{ if(!confirm("Throw away ALL your saved shop edits?")) return;
+  try{ await api("/api/shops/reset-all", {}); await load(); toast("Edits discarded.", true);}catch(e){toast(e.message);} };
+
+$("btnExport").onclick = async ()=>{
+  try{
+    const text = await api("/api/shops/export.csv");
+    const url = URL.createObjectURL(new Blob([text], {type:"text/csv;charset=utf-8"}));
+    const a = document.createElement("a"); a.href=url; a.download="shops.csv"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    toast("shops.csv saved to your downloads.", true);
+  }catch(e){ toast(e.message); }
+};
+$("btnImport").onclick = ()=>$("file").click();
+$("file").onchange = async ev=>{
+  const f = ev.target.files[0]; ev.target.value = ""; if(!f) return;
+  csvText = await f.text();
+  try{ showPreview(await api("/api/shops/import-preview", {csv:csvText})); }catch(e){ toast(e.message); }
+};
+const FIELD_LABEL = {num:"Limit", per:"Period", cur:"Currency", price:"Price", itemId:"Item ID"};
+function showPreview(p){
+  const fmt = (f,v)=> f==="per" ? `${v} ${D.periods[v]||""}` : f==="cur" ? `${cname(v)} (${v})` : String(v);
+  let h = `<p>${p.changes.length} change${p.changes.length===1?"":"s"}, ${p.unchanged} row${p.unchanged===1?"":"s"} unchanged.</p>`;
+  if(p.errors.length) h += `<div>${p.errors.map(e=>`<div class="err">${esc(e)}</div>`).join("")}<p class="hint">Nothing is imported until every line is valid.</p></div>`;
+  if(p.changes.length) h += `<table><thead><tr><th>Row</th><th>Name</th><th>Field</th><th>Now</th><th>Becomes</th></tr></thead><tbody>${
+    p.changes.map(c=>`<tr><td>${c.row}</td><td class="name">${esc(c.name)}</td><td>${FIELD_LABEL[c.field]||c.field}</td><td>${esc(fmt(c.field,c.old))}</td><td><b>${esc(fmt(c.field,c.new))}</b></td></tr>`).join("")}</tbody></table>`;
+  $("mBody").innerHTML = h;
+  $("mApply").disabled = p.errors.length>0 || p.changes.length===0;
+  $("modal").classList.add("on");
+}
+$("mCancel").onclick = ()=>$("modal").classList.remove("on");
+$("mApply").onclick = async ()=>{
+  try{ const r = await api("/api/shops/import-apply", {csv:csvText}); $("modal").classList.remove("on"); await load(); toast("Imported "+r.imported+" change"+(r.imported===1?"":"s")+". Press Apply to game to write them.", true); }
+  catch(e){ toast(e.message); }
+};
+load().catch(e=>{ $("card").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
+</script>
+</body>
+</html>

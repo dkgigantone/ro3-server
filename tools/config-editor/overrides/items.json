@@ -1,0 +1,20 @@
+{
+  "_about": "Edits made with plus-config-editor (Items). Only changed fields are stored. EquipConfig rows use the equipment's _iEquipId; ItemConfig rows use the item id.",
+  "ItemConfig": {},
+  "EquipConfig": {},
+  "CardConfig": {
+    "13": {
+      "_kBasicAttribute": [
+        [
+          5,
+          1
+        ],
+        [
+          109,
+          20
+        ]
+      ]
+    }
+  },
+  "CardUpgradeConfig": {}
+}
