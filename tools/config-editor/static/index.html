@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RO3 Plus - Skill Timing Editor</title>
+<style>
+:root{
+  --bg:#f4f6fa; --panel:#ffffff; --panel2:#f0f3f8; --line:#dfe5ee; --text:#1b2433; --muted:#6a778c;
+  --accent:#3b6df0; --accent-d:#2c55c7; --ok:#18a56b; --warn:#c98a0b; --bad:#d6404f; --chip:#e8eefc; --edit:#fff6dc;
+  --shadow:0 1px 2px rgba(20,30,50,.06),0 4px 14px rgba(20,30,50,.06);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0e1420; --panel:#151d2c; --panel2:#1b2638; --line:#27344b; --text:#e6ecf6; --muted:#8c9bb3;
+  --accent:#6b93ff; --accent-d:#5a82f0; --ok:#3ccf91; --warn:#f0b64a; --bad:#ff7380; --chip:#22314f; --edit:#3a3216;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:7px 14px;border-radius:8px}
+button:hover{background:var(--panel2)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{background:var(--accent-d)}
+button.primary:disabled{opacity:.5;cursor:default}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--text);background:var(--panel2)}
+input,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+nav.top{display:flex;gap:4px;background:var(--panel2);padding:3px;border-radius:10px}
+nav.top a{padding:5px 14px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:600}
+nav.top a.on{background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+header .path{color:var(--muted);font-size:12px;max-width:42vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .spacer{flex:1}
+.pill{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)}
+.banner{margin:12px 20px 0;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.banner.warn{border-color:var(--warn)} .banner.bad{border-color:var(--bad)}
+.banner .grow{flex:1}
+main{flex:1;display:grid;grid-template-columns:340px 1fr;gap:16px;padding:16px 20px 20px;min-height:0}
+aside,section.main{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);min-height:0;display:flex;flex-direction:column}
+aside .tools{padding:12px;display:grid;gap:8px;border-bottom:1px solid var(--line)}
+aside .tools label{color:var(--muted);font-size:12px;display:flex;gap:6px;align-items:center}
+#list{overflow:auto;flex:1}
+.item{padding:9px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;gap:8px;align-items:center}
+.item:hover{background:var(--panel2)} .item.sel{background:var(--chip)}
+.item .n{flex:1;min-width:0}
+.item .n b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.item .n span{color:var(--muted);font-size:12px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--warn);flex:none}
+.count{padding:8px 14px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+section.main{overflow:auto}
+.pad{padding:20px 24px 28px}
+.empty{padding:48px 32px;color:var(--muted);max-width:620px}
+.empty h2{color:var(--text);margin:0 0 8px}
+.empty ol{padding-left:20px;line-height:1.9}
+.title{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.title h2{margin:0;font-size:22px}
+.title .sub{color:var(--muted)}
+.levels{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 6px;align-items:center}
+.chip{padding:4px 11px;border-radius:99px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:13px}
+.chip.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip.ed{box-shadow:inset 0 -3px 0 var(--warn)}
+.allbox{margin-left:auto;display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;margin-top:10px;align-items:start}
+.card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px;background:var(--panel)}
+.card h3{margin:0 0 2px;font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.card .lead{color:var(--muted);font-size:12.5px;margin:0 0 12px}
+.field{display:grid;grid-template-columns:1fr 150px;gap:4px 14px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.field:first-of-type{border-top:0}
+.field .lab b{display:block;font-weight:600}
+.field .lab small{color:var(--muted);font-size:12px}
+.field .ctl{display:flex;gap:6px;align-items:center}
+.field input{width:100%;text-align:right}
+.field.changed input{background:var(--edit);border-color:var(--warn)}
+.unit{color:var(--muted);width:18px;font-size:12px}
+.was{grid-column:1/-1;font-size:12px;color:var(--warn);display:flex;gap:8px;align-items:center}
+.was button{padding:1px 8px;font-size:12px}
+.pubrow{display:grid;grid-template-columns:1fr 150px;gap:4px 14px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.pubrow:first-of-type{border-top:0}
+.preview{position:sticky;top:0}
+.preview .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.preview .stats label{font-size:12px;color:var(--muted);display:block;margin-bottom:2px}
+.preview .stats input{width:100%}
+table.cmp{width:100%;border-collapse:collapse;font-size:13px}
+table.cmp th{font-weight:600;color:var(--muted);text-align:right;font-size:12px;padding:4px 0}
+table.cmp th:first-child,table.cmp td:first-child{text-align:left}
+table.cmp td{padding:7px 0;border-top:1px solid var(--line);text-align:right}
+table.cmp td.new{font-weight:700} table.cmp td.up{color:var(--bad)} table.cmp td.down{color:var(--ok)}
+.note{font-size:12px;color:var(--muted);margin-top:10px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1b2433;color:#fff;padding:10px 18px;border-radius:10px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .2s;max-width:80vw;z-index:30}
+#toast.show{opacity:1} #toast.err{background:var(--bad)}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--text);padding:22px 24px;max-width:520px;box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(10,15,25,.5)}
+dialog h3{margin:0 0 8px} dialog p{color:var(--muted)} dialog .row{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.menu{position:relative}
+.menu .pop{position:absolute;right:0;top:110%;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;display:none;min-width:260px;z-index:10}
+.menu.open .pop{display:block}
+.menu .pop button{display:block;width:100%;text-align:left;border:0;background:transparent}
+.menu .pop button:hover{background:var(--panel2)}
+@media (max-width:1100px){main{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.preview{position:static}aside{max-height:46vh}}
+</style>
+</head>
+<body>
+<header>
+  <nav class="top"><a href="/" class="on">Skills</a><a href="/items">Items</a><a href="/shops">Shops</a></nav>
+  <span class="path" id="home" title=""></span>
+  <button class="ghost" id="changeHome">Change folder</button>
+  <span class="spacer"></span>
+  <span class="pill" id="statePill"></span>
+  <button id="exportBtn">Copy change list</button>
+  <div class="menu" id="menu">
+    <button id="menuBtn">More ▾</button>
+    <div class="pop">
+      <button id="discardBtn">Discard all my edits</button>
+      <button id="restoreBtn">Put the untouched original back in the game</button>
+    </div>
+  </div>
+  <button class="primary" id="applyBtn">Apply to game</button>
+</header>
+<div id="banners"></div>
+<main>
+  <aside>
+    <div class="tools">
+      <input id="q" type="search" placeholder="Search skill name or ID…" autocomplete="off">
+      <select id="job"></select>
+      <label><input type="checkbox" id="onlyEdited"> Show only skills I edited</label>
+    </div>
+    <div id="list"></div>
+    <div class="count" id="count"></div>
+  </aside>
+  <section class="main" id="main"></section>
+</main>
+<div id="toast"></div>
+<dialog id="dlg"></dialog>
+
+<script>
+"use strict";
+let D = null;            // game data from the server
+let OV = {};             // overrides: rowId -> {field: value}
+let META = null;
+let selSkill = null;     // skill id (string)
+let selRow = null;       // level row id (string)
+let allLevels = false;
+let shown = 0;
+const BYID = new Map();
+const STATS = { dex: 99, agi: 99, cast: 0, cd: 0 };   // preview inputs
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const r = await fetch(path, opt);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function toast(msg, err) {
+  const t = $("#toast"); t.textContent = msg; t.className = "show" + (err ? " err" : "");
+  clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = ""), err ? 5000 : 2600);
+}
+const fmtS = (ms) => { const s = ms / 1000; return (Number.isInteger(s) ? s.toString() : s.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")) + " s"; };
+const fmtCd = (ms) => ms >= 3600000 ? (ms / 3600000).toFixed(1).replace(/\.0$/, "") + " h" : fmtS(ms);
+
+// ---------- effective values
+const eff = (l, f) => (OV[l.row] && OV[l.row][f] !== undefined ? OV[l.row][f] : l[f]);
+const effPub = (l, i) => (OV[l.row] && OV[l.row]._iPubCD ? OV[l.row]._iPubCD[i] : l.pub[i].ms);
+const skillEdited = (s) => s.levels.some((l) => OV[l.row] && Object.keys(OV[l.row]).length);
+
+// ---------- list
+function jobName(j) { return D.jobs[j] || ("Class " + j); }
+function buildJobSelect() {
+  const counts = {};
+  D.skills.forEach((s) => (counts[s.job] = (counts[s.job] || 0) + 1));
+  const jobs = Object.keys(counts).sort((a, b) => jobName(a).localeCompare(jobName(b)));
+  $("#job").innerHTML = '<option value="">All classes</option>' + jobs.map((j) => `<option value="${j}">${esc(jobName(j))} (${counts[j]})</option>`).join("");
+}
+function filtered() {
+  const q = $("#q").value.trim().toLowerCase(), job = $("#job").value, only = $("#onlyEdited").checked;
+  return D.skills.filter((s) => (!job || s.job === job) && (!only || skillEdited(s)) &&
+    (!q || s.name.toLowerCase().includes(q) || s.id.includes(q)));
+}
+function renderList(more) {
+  const rows = filtered();
+  shown = more ? shown + 300 : 300;
+  const slice = rows.slice(0, shown);
+  $("#list").innerHTML = slice.map((s) => `<div class="item ${s.id === selSkill ? "sel" : ""}" data-id="${s.id}">
+      <div class="n"><b>${esc(s.name)}</b><span>${esc(jobName(s.job))} · ID ${s.id} · ${s.maxLevel} lv${s.modes.length > 1 ? " · " + s.modes.length + " versions" : ""}</span></div>
+      ${skillEdited(s) ? '<i class="dot" title="You edited this skill"></i>' : ""}</div>`).join("") +
+    (rows.length > shown ? '<div class="item" id="more"><div class="n"><b>Show more…</b></div></div>' : "");
+  $("#count").textContent = `${rows.length.toLocaleString()} skill${rows.length === 1 ? "" : "s"}` + (rows.length > shown ? ` (showing ${shown})` : "");
+}
+
+// ---------- header / banners
+function renderStatus() {
+  const n = META.changedRows;
+  const pill = $("#statePill");
+  let text, cls = "";
+  if (META.fileStatus === "external") { text = "Game file changed outside this tool"; cls = "warn"; }
+  else if (n === 0) { text = META.fileStatus === "applied" ? "Game has old edits – apply to clear" : "No edits"; cls = META.fileStatus === "applied" ? "warn" : "ok"; }
+  else if (META.fileStatus === "applied" && META.inSync) { text = `${n} edited row${n === 1 ? "" : "s"} · applied`; cls = "ok"; }
+  else { text = `${n} edited row${n === 1 ? "" : "s"} · not applied yet`; cls = "warn"; }
+  pill.textContent = text; pill.className = "pill " + cls;
+  $("#home").textContent = META.home; $("#home").title = META.home;
+  let b = "";
+  if (META.fileStatus === "external")
+    b += `<div class="banner bad"><div class="grow"><b>The game's SkillConfig.json was changed by something else</b> (for example a server update or another tool). Your edits are safe, but Apply is paused so nothing gets overwritten.</div><button id="rebase">Use current file as new original</button></div>`;
+  if (META.serverRunning)
+    b += `<div class="banner warn"><div class="grow"><b>The server looks like it is running.</b> You can still edit. Restart it after Apply so it loads the new values.</div></div>`;
+  $("#banners").innerHTML = b;
+  const r = $("#rebase"); if (r) r.onclick = () => confirmDlg("Use the current file as the new original?",
+    "Do this after you refreshed the game config on purpose (for example after pulling a server update). Your edits stay and will be laid on top of the new file the next time you Apply.", "Use current file", async () => { META = await api("/api/rebaseline", {}); await reload(); toast("Done"); });
+  $("#applyBtn").disabled = META.fileStatus === "external" || META.inSync || (n === 0 && META.fileStatus !== "applied");
+}
+
+// ---------- editor
+function selectSkill(id, row) {
+  selSkill = id; const s = BYID.get(id);
+  selRow = row || (s.levels.find((l) => l.row === selRow) || s.levels[0]).row;
+  renderList(false); renderMain();
+}
+function fieldHtml(l, f, label, hint, unit) {
+  const cur = eff(l, f), orig = l[f], changed = cur !== orig;
+  const val = unit === "s" ? cur / 1000 : cur;
+  return `<div class="field ${changed ? "changed" : ""}">
+    <div class="lab"><b>${label}</b><small>${hint}</small></div>
+    <div class="ctl"><input type="number" min="0" step="${unit === "s" ? "0.05" : "1"}" data-f="${f}" data-u="${unit}" value="${val}"><span class="unit">${unit === "s" ? "sec" : "%"}</span></div>
+    ${changed ? `<div class="was">Original: ${unit === "s" ? fmtCd(orig) : orig + "%"} <button data-reset="${f}">Reset</button></div>` : ""}</div>`;
+}
+function renderMain() {
+  const m = $("#main");
+  if (!selSkill) {
+    m.innerHTML = `<div class="empty"><h2>Pick a skill on the left</h2>
+      <ol><li>Search a skill by name, or filter by class.</li><li>Change its cast time, cooldown or delays in plain seconds.</li><li>Check the preview on the right to see what players will feel.</li><li>Press <b>Apply to game</b>, then restart the server.</li></ol>
+      <p>Everything you change is kept in a small file (<code>overrides/skills.json</code>) so you can track it in your repo. The original game file is never lost.</p></div>`;
+    return;
+  }
+  const s = BYID.get(selSkill), l = s.levels.find((x) => x.row === selRow);
+  const lvls = s.levels.filter((x) => x.mode === l.mode);
+  const chips = lvls.map((x) => `<span class="chip ${x.row === selRow ? "sel" : ""} ${OV[x.row] && Object.keys(OV[x.row]).length ? "ed" : ""}" data-row="${x.row}">Lv ${x.level}</span>`).join("");
+  const modeEd = (m) => s.levels.some((x) => x.mode === m && OV[x.row] && Object.keys(OV[x.row]).length);
+  const modeRow = s.modes.length > 1 ? `<div class="levels" style="margin-bottom:0"><span style="color:var(--muted);font-size:13px">Version:</span>${s.modes.map((m) => `<span class="chip ${m === l.mode ? "sel" : ""} ${modeEd(m) ? "ed" : ""}" data-mode="${m}">${m === 0 ? "Normal" : "Alternate " + m}</span>`).join("")}<span style="color:var(--muted);font-size:12px">This skill has alternate versions (a talent or mount can switch the skill to one). They have their own timings.</span></div>` : "";
+  const pubs = l.pub.map((p, i) => {
+    const cur = effPub(l, i), changed = cur !== p.ms;
+    const tn = D.targetNames[String(p.target)] || (p.target == null ? "another skill" : "skill " + p.target);
+    return `<div class="pubrow">
+      <div><b>${esc(tn)}</b><br><small style="color:var(--muted)">goes on cooldown when this skill is used</small></div>
+      <div class="ctl" style="display:flex;gap:6px;align-items:center"><input type="number" min="0" step="0.05" data-pub="${i}" value="${cur / 1000}" style="width:100%;text-align:right;${changed ? "background:var(--edit);border-color:var(--warn)" : ""}"><span class="unit">sec</span></div>
+      ${changed ? `<div class="was" style="grid-column:1/-1">Original: ${fmtCd(p.ms)} <button data-resetpub="${i}">Reset</button></div>` : ""}</div>`;
+  }).join("");
+  m.innerHTML = `<div class="pad">
+    <div class="title"><h2>${esc(s.name)}</h2><span class="sub">${esc(jobName(s.job))} · skill ID ${s.id} · row ${l.row}</span></div>
+    ${modeRow}<div class="levels">${chips}<label class="allbox"><input type="checkbox" id="allLv" ${allLevels ? "checked" : ""}> Apply my edits to all ${lvls.length} levels${s.modes.length > 1 ? " of this version" : ""}</label></div>
+    <div class="grid"><div>
+      <div class="card"><h3>Casting</h3><p class="lead">How long the cast bar takes before the skill goes off.</p>
+        ${fieldHtml(l, "_iChantVar", "Cast time that DEX can shorten", "rAthena: variable cast time", "s")}
+        ${fieldHtml(l, "_iChantFix", "Cast time that DEX cannot shorten", "rAthena: fixed cast time", "s")}
+      </div>
+      <div class="card"><h3>After the skill</h3><p class="lead">How long the character stays busy with the animation.</p>
+        ${fieldHtml(l, "_iActionTime", "Action time (animation / cannot move)", "Roughly rAthena: after-cast walk delay. The caster can't walk during chant + this time on skills that lock movement.", "s")}
+        ${fieldHtml(l, "_iActionTimeInfluence", "How much attack speed shortens it", "0 = AGI / ASPD has no effect on this skill. 100 = full effect.", "%")}
+      </div>
+      <div class="card"><h3>Cooldowns</h3><p class="lead">How long before the skill can be used again.</p>
+        ${fieldHtml(l, "_iCD", "This skill's cooldown", "rAthena: after-cast act delay (this skill only)", "s")}
+        ${l.pub.length ? `<div style="margin-top:6px;border-top:1px solid var(--line);padding-top:10px"><b>Shared (global) cooldowns</b><div style="color:var(--muted);font-size:12px;margin-bottom:4px">rAthena: global delay. Using this skill locks these skills for the time shown.</div>${pubs}</div>` : '<div class="note">This skill has no shared (global) cooldown.</div>'}
+      </div></div>
+      <div class="preview"><div class="card"><h3>Live preview</h3><p class="lead">What the character feels with these stats (estimate).</p>
+        <div class="stats">
+          <div><label>DEX</label><input type="number" min="0" id="pDex" value="${STATS.dex}"></div>
+          <div><label>AGI</label><input type="number" min="0" id="pAgi" value="${STATS.agi}"></div>
+          <div><label>Extra cast speed (gear/buffs)</label><input type="number" min="0" id="pCast" value="${STATS.cast}"></div>
+          <div><label>Cooldown reduction %</label><input type="number" min="0" max="100" id="pCd" value="${STATS.cd}"></div>
+        </div><div id="cmp"></div>
+        <div class="note">Cast speed = 2 per DEX point + extras, capped at ${D.formula.castCap}. AGI to attack speed is an estimate (2 per point on top of 100).</div>
+      </div></div>
+    </div></div>`;
+  renderPreview();
+}
+function calc(l, get) {
+  const cspd = Math.min(Math.max(0, 2 * STATS.dex + STATS.cast), D.formula.castCap);
+  const red = (D.formula.A * cspd) / (D.formula.B + D.formula.C * cspd);
+  const v = Math.max(0, get("_iChantVar") * Math.max(0, 1 - red)), fx = get("_iChantFix");
+  const aspd = Math.min(Math.max((100 + 2 * STATS.agi) / 100, 0.1), D.formula.aspdCap / 100);
+  const act = get("_iActionTime") / Math.max(0.1, 1 + (aspd - 1) * (get("_iActionTimeInfluence") / 100));
+  const cd = Math.round(get("_iCD") * Math.max(0, 1 - STATS.cd / 100));
+  return { cast: Math.floor(v + fx), act: Math.round(act), cd };
+}
+function renderPreview() {
+  const s = BYID.get(selSkill), l = s.levels.find((x) => x.row === selRow);
+  const a = calc(l, (f) => l[f]), b = calc(l, (f) => eff(l, f));
+  const row = (label, x, y) => `<tr><td>${label}</td><td>${fmtS(x)}</td><td class="new ${y > x ? "up" : y < x ? "down" : ""}">${fmtS(y)}</td></tr>`;
+  $("#cmp").innerHTML = `<table class="cmp"><tr><th></th><th>Original</th><th>Now</th></tr>
+    ${row("Cast bar", a.cast, b.cast)}${row("Action time", a.act, b.act)}${row("Cooldown", a.cd, b.cd)}</table>`;
+}
+
+// ---------- saving edits
+let pending = new Map();
+function queueSave(key, items) {
+  pending.set(key, items); clearTimeout(queueSave.t);
+  queueSave.t = setTimeout(flush, 350);
+}
+async function flush() {
+  const items = [].concat(...pending.values()); pending = new Map();
+  if (!items.length) return;
+  try {
+    await api("/api/set-many", { items });
+    await reloadOverrides();
+  } catch (e) { toast(e.message, true); await reloadOverrides(); renderMain(); }
+}
+async function reloadOverrides() { const d = await api("/api/state"); OV = d.overrides; META = d.status; renderStatus(); renderList(false); const s = selSkill && BYID.get(selSkill); if (s) renderChips(); }
+function renderChips() {
+  const s = BYID.get(selSkill); if (!s) return;
+  const ed = (r) => !!(OV[r] && Object.keys(OV[r]).length);
+  document.querySelectorAll(".chip[data-row]").forEach((c) => c.classList.toggle("ed", ed(c.dataset.row)));
+  document.querySelectorAll(".chip[data-mode]").forEach((c) => c.classList.toggle("ed", s.levels.some((x) => x.mode === Number(c.dataset.mode) && ed(x.row))));
+}
+function targets() { const s = BYID.get(selSkill), cur = s.levels.find((x) => x.row === selRow); return allLevels ? s.levels.filter((x) => x.mode === cur.mode) : [cur]; }
+function applyLocal(row, f, v, orig) {
+  OV[row] = OV[row] || {};
+  if (v === null || v === orig) delete OV[row][f]; else OV[row][f] = v;
+  if (!Object.keys(OV[row]).length) delete OV[row];
+}
+function setWas(box, changed, text, attrs) {
+  let w = box.querySelector(":scope > .was");
+  if (!changed) { if (w) w.remove(); return; }
+  if (!w) { w = document.createElement("div"); w.className = "was"; box.appendChild(w); }
+  w.innerHTML = `Original: ${text} <button ${attrs}>Reset</button>`;
+}
+function onField(input) {
+  const f = input.dataset.f, u = input.dataset.u;
+  let n = Number(input.value);
+  if (input.value === "" || !isFinite(n) || n < 0) return;
+  const v = u === "s" ? Math.round(n * 1000) : Math.round(n);
+  const items = [];
+  for (const l of targets()) { applyLocal(l.row, f, v, l[f]); items.push({ row: l.row, field: f, value: v }); }
+  const cur = BYID.get(selSkill).levels.find((x) => x.row === selRow), box = input.closest(".field");
+  box.classList.toggle("changed", v !== cur[f]);
+  setWas(box, v !== cur[f], u === "s" ? fmtCd(cur[f]) : cur[f] + "%", `data-reset="${f}"`);
+  renderPreview(); queueSave("f:" + f + selRow + allLevels, items);
+}
+function onPub(input) {
+  const i = Number(input.dataset.pub), n = Number(input.value);
+  if (input.value === "" || !isFinite(n) || n < 0) return;
+  const v = Math.round(n * 1000), items = [];
+  { const lv = BYID.get(selSkill).levels.find((x) => x.row === selRow), box = input.closest(".pubrow");
+    input.style.cssText = "width:100%;text-align:right;" + (v !== lv.pub[i].ms ? "background:var(--edit);border-color:var(--warn)" : "");
+    setWas(box, v !== lv.pub[i].ms, fmtCd(lv.pub[i].ms), `data-resetpub="${i}"`); }
+  for (const l of targets()) {
+    if (!l.pub[i]) continue;
+    const cur = (OV[l.row] && OV[l.row]._iPubCD) ? OV[l.row]._iPubCD.slice() : l.pub.map((p) => p.ms);
+    cur[i] = v;
+    const same = cur.every((x, k) => x === l.pub[k].ms);
+    OV[l.row] = OV[l.row] || {};
+    if (same) delete OV[l.row]._iPubCD; else OV[l.row]._iPubCD = cur;
+    if (!Object.keys(OV[l.row]).length) delete OV[l.row];
+    items.push({ row: l.row, field: "_iPubCD", index: i, value: v });
+  }
+  queueSave("p:" + i + selRow + allLevels, items);
+}
+async function reset(field, idx) {
+  const items = [];
+  for (const l of targets()) items.push({ row: l.row, field, value: null, index: idx });
+  try { await api("/api/set-many", { items }); await reloadOverrides(); renderMain(); } catch (e) { toast(e.message, true); }
+}
+
+// ---------- dialogs & actions
+function confirmDlg(title, text, okLabel, onOk, danger) {
+  const d = $("#dlg");
+  d.innerHTML = `<h3>${esc(title)}</h3><p>${text}</p><div class="row"><button id="dNo">Cancel</button><button class="primary" id="dYes" ${danger ? 'style="background:var(--bad);border-color:var(--bad)"' : ""}>${esc(okLabel)}</button></div>`;
+  d.showModal();
+  $("#dNo").onclick = () => d.close();
+  $("#dYes").onclick = async () => { d.close(); try { await onOk(); } catch (e) { toast(e.message, true); } };
+}
+async function reload() {
+  const d = await api("/api/data"); D = d; OV = d.overrides; META = d.status; BYID.clear();
+  D.skills.forEach((s) => BYID.set(s.id, s));
+  buildJobSelect(); renderStatus(); renderList(false);
+  if (selSkill && !BYID.has(selSkill)) selSkill = null;
+  renderMain();
+}
+
+document.addEventListener("click", async (e) => {
+  const t = e.target;
+  if (!t.closest("#menu")) $("#menu").classList.remove("open");
+  const item = t.closest(".item[data-id]"); if (item) return selectSkill(item.dataset.id);
+  if (t.closest("#more")) return renderList(true);
+  const chip = t.closest(".chip[data-row]"); if (chip) { selRow = chip.dataset.row; return renderMain(); }
+  const mchip = t.closest(".chip[data-mode]");
+  if (mchip) { const s = BYID.get(selSkill), cur = s.levels.find((x) => x.row === selRow), m = Number(mchip.dataset.mode);
+    selRow = (s.levels.find((x) => x.mode === m && x.level === cur.level) || s.levels.find((x) => x.mode === m)).row; return renderMain(); }
+  if (t.dataset.reset) return reset(t.dataset.reset);
+  if (t.dataset.resetpub !== undefined && t.dataset.resetpub !== "") return reset("_iPubCD", Number(t.dataset.resetpub));
+});
+document.addEventListener("input", (e) => {
+  const t = e.target;
+  if (t.dataset.f) onField(t);
+  else if (t.dataset.pub !== undefined) onPub(t);
+  else if (t.id === "pDex") { STATS.dex = +t.value || 0; renderPreview(); }
+  else if (t.id === "pAgi") { STATS.agi = +t.value || 0; renderPreview(); }
+  else if (t.id === "pCast") { STATS.cast = +t.value || 0; renderPreview(); }
+  else if (t.id === "pCd") { STATS.cd = Math.min(100, +t.value || 0); renderPreview(); }
+});
+document.addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.id === "allLv") allLevels = t.checked;
+  if (t.id === "job" || t.id === "onlyEdited") renderList(false);
+});
+$("#q").addEventListener("input", () => renderList(false));
+$("#menuBtn").onclick = (e) => { e.stopPropagation(); $("#menu").classList.toggle("open"); };
+$("#exportBtn").onclick = async () => {
+  const r = await fetch("/api/export"); const txt = await r.text();
+  try { await navigator.clipboard.writeText(txt); toast("Change list copied. Paste it into an issue or Discord."); } catch { toast("Could not copy", true); }
+};
+$("#discardBtn").onclick = () => { $("#menu").classList.remove("open"); confirmDlg("Discard all your edits?", "This clears your edit list. It does not change the game until you press Apply (then Apply puts the original values back).", "Discard edits", async () => { await api("/api/reset-all", {}); await reload(); toast("Edits cleared"); }, true); };
+$("#restoreBtn").onclick = () => { $("#menu").classList.remove("open"); confirmDlg("Put the untouched original back in the game?", "The game's SkillConfig.json is replaced by the original copy. Your edit list is kept, so you can Apply again later. A backup of the current file is made first.", "Restore original", async () => { await api("/api/restore-original", {}); await reload(); toast("Original restored. Restart the server."); }); };
+$("#applyBtn").onclick = async () => { await flush(); confirmDlg("Apply your edits to the game?",
+  `This writes <b>${META.changedRows}</b> edited row(s) into <code>data\\config\\SkillConfig.json</code> (a backup is made first). ${META.serverRunning ? "<br><br><b>The server seems to be running.</b> Restart it afterwards to load the changes." : "Start or restart the server afterwards to load them."}`,
+  "Apply", async () => { await flush(); const r = await api("/api/apply", {}); META = r.meta; await reload(); toast(`Applied ${r.fields} value(s) in ${r.rows} row(s). Restart the server.`); }); };
+$("#changeHome").onclick = () => {
+  const d = $("#dlg");
+  d.innerHTML = `<h3>Game folder</h3><p>The folder that contains <code>data\\config</code> (for example your RO3 OFFICIAL SERVER FILES V2 folder).</p><input id="homeIn" style="width:100%" value="${esc(META.home)}"><div class="row"><button id="hNo">Cancel</button><button class="primary" id="hYes">Use this folder</button></div>`;
+  d.showModal(); $("#hNo").onclick = () => d.close();
+  $("#hYes").onclick = async () => { try { await api("/api/set-home", { home: $("#homeIn").value.trim() }); d.close(); selSkill = null; await reload(); toast("Folder changed"); } catch (e) { toast(e.message, true); } };
+};
+
+reload().catch((e) => { $("#main").innerHTML = `<div class="empty"><h2>Could not load</h2><p>${esc(e.message)}</p><p>Use “Change folder” to point the editor at the folder that contains <code>data\\config</code>.</p></div>`; api("/api/meta").then((m) => { META = m; $("#home").textContent = m.home; }).catch(() => {}); });
+</script>
+</body>
+</html>
