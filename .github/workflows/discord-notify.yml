@@ -1,6 +1,6 @@
 name: Discord notify
 
-# Posts a plain-text line (event + title only, no links) to Discord.
+# Posts a card (event, number, title and the main section of the body) to Discord. No links, no repo name.
 # Needs two repository secrets: DISCORD_ISSUES_WEBHOOK and DISCORD_PRS_WEBHOOK.
 
 on:
@@ -20,10 +20,21 @@ jobs:
         env:
           WEBHOOK: ${{ secrets.DISCORD_ISSUES_WEBHOOK }}
           ACTION: ${{ github.event.action }}
+          NUMBER: ${{ github.event.issue.number }}
           TITLE: ${{ github.event.issue.title }}
+          BODY: ${{ github.event.issue.body }}
         run: |
           [ -n "$WEBHOOK" ] || exit 0
-          jq -n --arg c "Issue ${ACTION}: ${TITLE}" '{content: $c, allowed_mentions: {parse: []}}' \
+          case "$ACTION" in
+            opened) LABEL="Issue #${NUMBER} · Opened"; COLOR=15965202 ;;
+            *)      LABEL="Issue #${NUMBER} · Closed"; COLOR=3066993 ;;
+          esac
+          CLEAN=$(printf '%s' "$BODY" | tr -d '\r' | grep -vi '^closes #' || true)
+          DESC=$(printf '%s\n' "$CLEAN" | awk 'tolower($0) ~ /^## /{ if (on) exit; on = (tolower(substr($0,4)) == "problem"); next } on')
+          [ -n "$DESC" ] || DESC="$CLEAN"
+          DESC=$(printf '%s' "$DESC" | head -c 1500)
+          jq -n --arg label "$LABEL" --arg title "$TITLE" --arg desc "$DESC" --argjson color "$COLOR" \
+            '{allowed_mentions: {parse: []}, embeds: [{author: {name: $label}, title: $title, description: $desc, color: $color, footer: {text: "Eclipse Project"}, timestamp: (now | todate)}]}' \
             | curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK"
 
   pull-request:
@@ -35,9 +46,18 @@ jobs:
           WEBHOOK: ${{ secrets.DISCORD_PRS_WEBHOOK }}
           ACTION: ${{ github.event.action }}
           MERGED: ${{ github.event.pull_request.merged }}
+          NUMBER: ${{ github.event.pull_request.number }}
           TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
         run: |
           [ -n "$WEBHOOK" ] || exit 0
-          if [ "$ACTION" = "closed" ] && [ "$MERGED" = "true" ]; then ACTION=merged; fi
-          jq -n --arg c "PR ${ACTION}: ${TITLE}" '{content: $c, allowed_mentions: {parse: []}}' \
+          if [ "$ACTION" = "opened" ]; then LABEL="Pull Request #${NUMBER} · Opened"; COLOR=3447003
+          elif [ "$MERGED" = "true" ]; then LABEL="Pull Request #${NUMBER} · Merged"; COLOR=10181046
+          else LABEL="Pull Request #${NUMBER} · Closed"; COLOR=15158332; fi
+          CLEAN=$(printf '%s' "$BODY" | tr -d '\r' | grep -vi '^closes #' || true)
+          DESC=$(printf '%s\n' "$CLEAN" | awk 'tolower($0) ~ /^## /{ if (on) exit; on = (tolower(substr($0,4)) == "what changes"); next } on')
+          [ -n "$DESC" ] || DESC="$CLEAN"
+          DESC=$(printf '%s' "$DESC" | head -c 1500)
+          jq -n --arg label "$LABEL" --arg title "$TITLE" --arg desc "$DESC" --argjson color "$COLOR" \
+            '{allowed_mentions: {parse: []}, embeds: [{author: {name: $label}, title: $title, description: $desc, color: $color, footer: {text: "Eclipse Project"}, timestamp: (now | todate)}]}' \
             | curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK"
