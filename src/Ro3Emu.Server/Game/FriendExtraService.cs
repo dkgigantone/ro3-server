@@ -217,7 +217,7 @@ public sealed partial class FriendExtraService(FriendStore friends, RoleStore ro
     private async Task GiftCoreAsync(GameSession s, GiveFriendGiftReq req, Action<int> committed)
     {
         long self = s.Role!.Id;
-        int code = !personal.IsGiftItem(req.ItemId) || req.Count <= 0 || req.Message.Length > GiftMessageMaxLength ? ErrorCodes.Parameter
+        int code = req.ItemId is not (>= 1004000 and <= 1004006) && !personal.IsGiftItem(req.ItemId) || req.Count <= 0 || req.Message.Length > GiftMessageMaxLength ? ErrorCodes.Parameter
             : req.RoleId == self || await roles.GetAsync(req.RoleId) == null || !await friends.AreFriendsAsync(self, req.RoleId) ? Denied : 0;
         if (code != 0) { await s.SendGameAsync(GiveGift, new GiveFriendGiftResp { Result = code }); return; }
         var owners = loop.Owners!;

@@ -369,20 +369,22 @@ public sealed class PersonalService
     /// </summary>
     public (int Popularity, int Affection) GiftValues(long item, int count)
     {
-        if (_data.Row("ItemConfig", item) is not { } row) return (0, 0);
-        var effects = GameData.Pairs(row, "_iUseEffect").ToList();
+        var effects = UseEffects(item);
         int Total(int effect) => (int)Math.Min(int.MaxValue, effects.Where(e => e.Id == effect).Sum(e => (long)e.Value * count));
         return (Total(EffectPopularity), Total(EffectCharity));
     }
 
     /// <summary>Whether the item is a friend gift item (ItemConfig sub type 208), so the gift panel's items all pass.</summary>
-    public bool IsGiftItem(long item) => _data.Row("ItemConfig", item) is { } row && GameData.Int(row, "_iSubType") == GiftSubType;
+    public bool IsGiftItem(long item) => Data.Config.ItemConfig.Get(_data, item) is { SubType: GiftSubType };
+
+    /// <summary>The item's _iUseEffect pairs (effect id, value); empty when the item has no row.</summary>
+    private List<(long Id, double Value)> UseEffects(long item) =>
+        _data.Row("ItemConfig", item) is { } row ? [.. GameData.Pairs(row, "_iUseEffect")] : [];
 
     /// <summary>The intimacy a gift adds: the item's _iUseEffect 107 times the count (the "Intimacy +n" in its description).</summary>
     public long GiftIntimacy(long item, int count)
     {
-        if (_data.Row("ItemConfig", item) is not { } row) return 0;
-        return GameData.Pairs(row, "_iUseEffect").Where(e => e.Id == EffectIntimacy).Sum(e => (long)e.Value * count);
+        return UseEffects(item).Where(e => e.Id == EffectIntimacy).Sum(e => (long)e.Value * count);
     }
 
     /// <summary>Credits a committed gift: the receiver's popularity, the sender's affection.</summary>
