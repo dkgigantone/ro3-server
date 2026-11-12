@@ -55,13 +55,21 @@ public sealed partial class CombatService
         var request = action.Request.Clone();
         request.IsExtraSkill = true;
         var at = request.TargetPos?.Clone() ?? action.Origin.Clone();
+        long id = ++_sessionIds;
+        // The client draws a cast and its damage numbers only for a session it was told about, so the repeat is announced like any extra cast.
+        ScheduleRuntime(action.WorldScene, TimeSpan.FromMilliseconds(ReadingExtraDelayMs), () => s.Dead || s.Role?.Id != action.OwnerId || s.WorldScene != action.WorldScene
+            ? Task.CompletedTask : SendCastTimelineAsync(s, new UseInSkillInfo
+            {
+                SrcID = action.OwnerId, SkillID = (int)row.Id, TargetId = request.TargetId, TargetPos = at, Face = request.Face,
+                SessionId = id, SkillMs = SkillMs(s, row.Row), StartTime = Now, PlayAct = true,
+            }, extra: true));
         foreach (var (point, strike) in hits.Length > 0 ? hits : [(0d, row.Row)])
         {
             int due = ReadingExtraDelayMs + (hits.Length > 0 ? ImpactOffset(show, point, 0, action.ActionMs) : 0);
             ScheduleRuntime(action.WorldScene, TimeSpan.FromMilliseconds(due), () =>
                 s.Dead || s.Role?.Id != action.OwnerId || s.WorldScene != action.WorldScene ? Task.CompletedTask : ApplyEffectsAsync(s, new ActiveSkillCast
                 {
-                    Id = ++_sessionIds, OwnerId = action.OwnerId, WorldScene = action.WorldScene, SceneGeneration = s.SceneGeneration,
+                    Id = id, OwnerId = action.OwnerId, WorldScene = action.WorldScene, SceneGeneration = s.SceneGeneration,
                     Attachment = s.Attachment, Request = request, Row = strike, Origin = action.Origin.Clone(), StartMs = Now, ChantMs = 0, ActionMs = 1,
                 }, at));
         }
