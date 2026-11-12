@@ -64,6 +64,10 @@ td.ed input,td.ed select{background:var(--edit);border-color:var(--warn)}
 tr.look td.sells{color:var(--muted)}
 .tag{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;background:var(--chip);color:var(--muted);margin-left:6px}
 .warnicon{color:var(--warn);font-weight:700;cursor:help}
+.addbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.addbar input{width:110px} .addbar .nm{min-width:160px;color:var(--muted)}
+tr.added td:first-child{border-left:3px solid var(--ok)}
+.tag.new{background:var(--ok);color:#fff}
 .empty{padding:28px;text-align:center;color:var(--muted)}
 .modal{position:fixed;inset:0;background:rgba(10,15,25,.55);display:none;align-items:center;justify-content:center;z-index:20}
 .modal.on{display:flex}
@@ -166,7 +170,10 @@ function render(){
 }
 function renderTable(c){
   const card = $("card");
-  if(!c || !c.rows.length){ card.innerHTML = `<div class="empty">No rows in the data for this tab.</div>`; return; }
+  if(!c){ card.innerHTML = `<div class="empty">No rows in the data for this tab.</div>`; return; }
+  const fashion = c.rows.length>0 && c.rows.every(r=>r.look);
+  const bar = fashion || g_isFashion() ? `<div class="addbar hint">New items cannot be added to fashion tabs yet.</div>` : addBar(c);
+  if(!c.rows.length){ card.innerHTML = bar + `<div class="empty">No rows in the data for this tab.</div>`; wireAdd(c); return; }
   const per = D.periods;
   const rows = c.rows.map(r=>{
     const e = eff(r), look = !!r.look;
@@ -176,8 +183,8 @@ function renderTable(c){
     const curOpts = curs.map(x=>`<option value="${x.id}" ${x.id===e.cur?"selected":""}>${esc(x.name)} (${x.id})</option>`).join("");
     const warn = (e.num>0 && e.per===0) ? ` <span class="warnicon" title="A limit is set but the period is 'none'. Pick a period (4 = lifetime, 2 = weekly...).">!</span>` : "";
     const paid = pays(e.price, r.disc);
-    return `<tr class="${look?"look":""}" data-id="${r.id}">
-      <td class="dim">${r.id}</td>
+    return `<tr class="${look?"look":""} ${r.added?"added":""}" data-id="${r.id}">
+      <td class="dim">${r.id}${r.added?'<span class="tag new">new</span>':""}</td>
       <td class="num sells ${e.edItem?"ed":""}">${look ? `${r.look}<span class="tag">look</span>` : `<input type="number" data-f="itemId" value="${e.itemId}" min="1">`}</td>
       <td class="name">${esc(r.name) || '<span class="hint">(no English name)</span>'}</td>
       <td class="num ${e.edNum?"ed":""}"><input type="number" data-f="num" value="${e.num}" min="0" max="${D.maxLimit}" title="0 = no limit">${warn}</td>
@@ -186,11 +193,46 @@ function renderTable(c){
       <td class="num ${e.edPrice?"ed":""}"><input type="number" data-f="price" value="${e.price}" min="1" max="${D.maxPrice}"></td>
       <td class="dim">${r.disc>0 ? (r.disc/100)+"%" : ""}</td>
       <td class="dim" title="List price x discount, rounded up (what the server charges)">${r.disc>0 ? paid.toLocaleString() : ""}</td>
-      <td><button class="ghost" data-reset="1" title="Back to the original values">&#8634;</button></td></tr>`;
+      <td>${r.added ? `<button class="ghost" data-remove="1" title="Remove this added item">&#10005;</button>` : `<button class="ghost" data-reset="1" title="Back to the original values">&#8634;</button>`}</td></tr>`;
   }).join("");
-  card.innerHTML = `<table><thead><tr><th>ID</th><th>Item / look</th><th>English name</th><th>Limit</th><th>Period</th><th>Currency</th><th>Price</th><th>Disc.</th><th>Pays</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  card.innerHTML = bar + `<table><thead><tr><th>ID</th><th>Item / look</th><th>English name</th><th>Limit</th><th>Period</th><th>Currency</th><th>Price</th><th>Disc.</th><th>Pays</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   card.querySelectorAll("[data-f]").forEach(el=>el.onchange=()=>edit(+el.closest("tr").dataset.id, el.dataset.f, el));
   card.querySelectorAll("[data-reset]").forEach(el=>el.onclick=()=>resetRow(+el.closest("tr").dataset.id));
+  card.querySelectorAll("[data-remove]").forEach(el=>el.onclick=()=>removeAdded(+el.closest("tr").dataset.id));
+  wireAdd(c);
+}
+function g_isFashion(){ return D.groups[group].name === "Fashion"; }
+function addBar(c){
+  const curId = (c.display && c.display[0]) || (D.currencies[0] && D.currencies[0].id);
+  const curs = D.currencies.map(x=>`<option value="${x.id}" ${x.id===curId?"selected":""}>${esc(x.name)} (${x.id})</option>`).join("");
+  const pers = Object.keys(D.periods).map(Number).sort((a,b)=>a-b).map(p=>`<option value="${p}">${p} ${esc(D.periods[p])}</option>`).join("");
+  return `<div class="addbar"><b>+ Add item</b>
+    <input type="number" id="aItem" placeholder="Item ID" min="1">
+    <span class="nm" id="aName">type an item ID</span>
+    <select id="aCur">${curs}</select>
+    <input type="number" id="aPrice" placeholder="Price" min="1" max="${D.maxPrice}">
+    <input type="number" id="aNum" placeholder="Limit (0 = none)" min="0" max="${D.maxLimit}" value="0">
+    <select id="aPer">${pers}</select>
+    <button class="primary" id="aGo">Add to this tab</button></div>`;
+}
+function wireAdd(c){
+  const it = $("aItem"); if(!it) return;
+  let h = null;
+  it.oninput = ()=>{ clearTimeout(h); h = setTimeout(async ()=>{
+    const v = Number(it.value); if(!v){ $("aName").textContent = "type an item ID"; return; }
+    try{ const i = await api("/api/shops/item-info", {itemId:v}); $("aName").textContent = i.known ? i.name || "(no English name)" : "not in ItemConfig"; $("aName").style.color = i.known ? "" : "var(--bad)"; }catch(e){}
+  }, 250); };
+  $("aGo").onclick = async ()=>{
+    try{
+      const r = await api("/api/shops/add-item", {cls:c.id, itemId:Number(it.value), price:Number($("aPrice").value), cur:Number($("aCur").value),
+        num:Number($("aNum").value||0), per:Number($("aPer").value)});
+      META = r.meta; await load(); toast("Added as row "+r.row+". Press Apply to game, then restart the server and the client.", true);
+    }catch(e){ toast(e.message); }
+  };
+}
+async function removeAdded(id){
+  if(!confirm("Remove this added item from the shop?")) return;
+  try{ const r = await api("/api/shops/remove-added", {row:id}); META = r.meta; await load(); }catch(e){ toast(e.message); }
 }
 async function post(items){
   const res = await api("/api/shops/set-many", {items});
@@ -202,6 +244,8 @@ async function edit(id, field, el){
   try{
     if(value!==null && !Number.isInteger(value)) throw new Error("Please enter a whole number.");
     await post([{row:id, field, value}]);
+    const rr = findRow(id);
+    if(rr && rr.added && field==="itemId"){ await load(); return; }
   }catch(e){ toast(e.message); }
   render();
 }

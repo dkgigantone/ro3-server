@@ -438,6 +438,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.ok({"dir": str(set_client_dir(body["dir"]))})
             if path == "/api/shops/set-many":
                 return self.ok(self.shops.set_many(body["items"]))
+            if path == "/api/shops/add-item":
+                return self.ok(self.shops.add_item(body["cls"], body["itemId"], body["price"], body.get("cur"),
+                                                   body.get("num", 0), body.get("per", 0)))
+            if path == "/api/shops/remove-added":
+                return self.ok(self.shops.remove_added(body["row"]))
+            if path == "/api/shops/item-info":
+                return self.ok(self.shops.item_info(body["itemId"]))
             if path == "/api/shops/apply":
                 return self.ok(self.shops.apply())
             if path == "/api/shops/reset-all":

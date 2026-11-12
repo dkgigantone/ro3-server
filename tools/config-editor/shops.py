@@ -21,10 +21,12 @@ from datetime import datetime
 from pathlib import Path
 
 import common
+import copy
 from common import APP_DIR, LOCK, STATE_DIR, atomic_write, compact, read_json, server_running, sha256, update_overlay
 
 OVERRIDES = APP_DIR / "overrides" / "shops.json"
 TABLE = "ShopCommodityConfig"
+ADDED = "Added"          # overrides/shops.json: rows the editor adds (a copy of a sibling row with new values)
 READ_TABLES = ("ShopConfig", "ItemConfig", "WardRobeConfig", "Localization_en")
 MAX_BACKUPS = 5
 MAX_LIMIT = 99_999
@@ -143,27 +145,51 @@ class ShopsEditor:
     def load_overrides(self):
         d = read_json(OVERRIDES, {}) or {}
         rows = d.get(TABLE, {}) if isinstance(d, dict) else {}
-        return {TABLE: rows if isinstance(rows, dict) else {}}
+        added = d.get(ADDED, {}) if isinstance(d, dict) else {}
+        return {TABLE: rows if isinstance(rows, dict) else {}, ADDED: added if isinstance(added, dict) else {}}
 
     def save_overrides(self, ov):
         doc = {"_about": "Edits made with the config editor (Shops). Only changed fields are stored. "
                          "Rows use the ShopCommodityConfig row id; _kItemPerPrice is [currency item id, list price].",
-               TABLE: {k: ov[TABLE][k] for k in sorted(ov[TABLE], key=int) if ov[TABLE][k]}}
+               TABLE: {k: ov[TABLE][k] for k in sorted(ov[TABLE], key=int) if ov[TABLE][k]},
+               ADDED: {k: ov.get(ADDED, {})[k] for k in sorted(ov.get(ADDED, {}), key=int)}}
         atomic_write(OVERRIDES, json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
 
     @staticmethod
     def count(ov):
-        return len(ov[TABLE])
+        return len(ov[TABLE]) + len(ov.get(ADDED, {}))
 
     @staticmethod
     def ov_hash(ov):
         return hashlib.sha256(json.dumps(ov, sort_keys=True).encode("utf-8")).hexdigest()
 
+    # ------------------------------------------------------------ added rows
+    @staticmethod
+    def _synth(spec, rid, orig_rows):
+        """The full row an added item becomes: a copy of its source row (same tab) with the new values. Lock and
+        discount fields are cleared so the new row has no unlock condition of the row it was copied from."""
+        row = copy.deepcopy(orig_rows[str(spec["from"])])
+        row.update({"_iID": int(rid), "_iClassID": int(spec["class"]), K_ITEM: int(spec["itemId"]),
+                    K_NUM: int(spec["num"]), K_PER: int(spec["per"]), K_PRICE: [int(spec["cur"]), int(spec["price"])],
+                    "_iDiscount": 0, "_iMerchantDiscount": 0, "_iIsBuy": 0, "_iIsLock": 0, "_iRecommendID": 0,
+                    "_iSortId": int(spec["sort"])})
+        return row
+
+    def _build_base(self, ov):
+        """self.base = the original rows plus the added rows (so every edit check treats them like any other row)."""
+        orig = _index(read_json(self.original))
+        base = dict(orig)
+        for rid, spec in ov[ADDED].items():
+            if str(spec.get("from")) in orig:
+                base[rid] = self._synth(spec, rid, orig)
+        self.base = base
+        return base
+
     # ------------------------------------------------------------ data for the page
     def load_game_data(self):
         self.ensure_original()
-        base = _index(read_json(self.original))
-        self.base = base
+        ov = self.load_overrides()
+        base = self._build_base(ov)
         loc = read_json(self.config_dir / "Localization_en.json", {}) or {}
         items = _index(read_json(self.config_dir / "ItemConfig.json", {}))
         looks = _index(read_json(self.config_dir / "WardRobeConfig.json", {}))
@@ -186,7 +212,7 @@ class ShopsEditor:
             pair = r.get(K_PRICE) if isinstance(r.get(K_PRICE), list) else []
             cur, price = (pair + [0, 0])[:2] if len(pair) >= 2 else (0, 0)
             look = int(r.get("_iAppearanceId", 0) or 0)
-            iid = int(r.get(K_ITEM, 0) or 0)
+            iid = int(ov[TABLE].get(rid, {}).get(K_ITEM, r.get(K_ITEM, 0)) or 0)
             used_currencies.add(cur)
             rows_by_class.setdefault(int(r.get("_iClassID", 0)), []).append({
                 "id": int(rid), "itemId": iid, "look": look,
@@ -194,6 +220,7 @@ class ShopsEditor:
                 "num": int(r.get(K_NUM, 0) or 0), "per": int(r.get(K_PER, 0) or 0),
                 "cur": cur, "price": price, "disc": int(r.get("_iDiscount", 0) or 0),
                 "locked": bool(r.get("_iIsLock")) or bool(r.get("_iIsBuy")),
+                "added": rid in ov[ADDED],
             })
         groups, shown_classes = [], set()
         for gname, classes in GROUPS:
@@ -252,7 +279,8 @@ class ShopsEditor:
         if field not in FIELD_KEYS:
             raise ValueError(f"{field} cannot be edited here.")
         orig = base[row]
-        entry = ov[TABLE].setdefault(row, {})
+        is_new = row in ov[ADDED]
+        entry = {} if is_new else ov[TABLE].setdefault(row, {})
         key = FIELD_KEYS[field]
         if field == "num":
             if value is not None:
@@ -290,6 +318,17 @@ class ShopsEditor:
                 if not self._known_item(value):
                     raise ValueError(f"Item {value} does not exist in ItemConfig.")
             new = orig.get(key) if value is None else value
+        if is_new:                      # an added row keeps its values in its own record
+            spec = ov[ADDED][row]
+            if key == K_PRICE:
+                spec["cur"], spec["price"] = new[0], new[1]
+            elif key == K_NUM:
+                spec["num"] = new
+            elif key == K_PER:
+                spec["per"] = new
+            else:
+                spec["itemId"] = new
+            return
         if new == orig.get(key):
             entry.pop(key, None)
         else:
@@ -308,12 +347,75 @@ class ShopsEditor:
             for it in items:
                 self._edit(ov, str(it["row"]), it["field"], it.get("value"))
             self.save_overrides(ov)
+            if any(str(it["row"]) in ov[ADDED] or it["field"] == "itemId" for it in items):
+                self.cache = None       # names and added rows are part of the page data
             return {"meta": self.meta(), "overrides": ov}
 
     def reset_all(self):
+        """Discards every edit and every added row."""
         with LOCK:
-            self.save_overrides({TABLE: {}})
+            self.save_overrides({TABLE: {}, ADDED: {}})
+            self.cache = None
             return self.meta()
+
+    def item_info(self, item_id):
+        with LOCK:
+            self.check_home()
+            loc = read_json(self.config_dir / "Localization_en.json", {}) or {}
+            r = _index(read_json(self.config_dir / "ItemConfig.json", {})).get(str(item_id))
+            return {"known": r is not None, "name": _text(loc, r.get("_iName")) if r else ""}
+
+    def add_item(self, cls, item_id, price, cur=None, num=0, per=0):
+        """Adds a new item to an item tab: a copy of the tab's last item row with the new item, price and limit."""
+        with LOCK:
+            self.check_home()
+            self.ensure_original()
+            ov = self.load_overrides()
+            self._build_base(ov)
+            _int(cls, "Shop tab")
+            if cls not in {c for _, cs in GROUPS for c in cs}:
+                raise ValueError("That shop tab is not editable here.")
+            rows = [(int(rid), r) for rid, r in self.base.items() if int(r.get("_iClassID", 0) or 0) == cls]
+            sources = [(i, r) for i, r in rows if str(i) not in ov[ADDED] and int(r.get(K_ITEM, 0) or 0) > 0
+                       and not int(r.get("_iAppearanceId", 0) or 0) and not int(r.get("_iAppranceId", 0) or 0)]
+            if not sources:
+                raise ValueError("This tab has no item rows to copy from. Fashion tabs cannot get new rows yet.")
+            src_id, src = max(sources, key=lambda t: t[0])
+            _int(item_id, "Item ID")
+            if not self._known_item(item_id):
+                raise ValueError(f"Item {item_id} does not exist in ItemConfig.")
+            _int(price, "Price")
+            if not 1 <= price <= MAX_PRICE:
+                raise ValueError(f"Price must be between 1 and {MAX_PRICE:,}.")
+            cur = src[K_PRICE][0] if cur is None else _int(cur, "Currency")
+            if not self._currency_ok(cur):
+                raise ValueError(f"Currency {cur} is not an item in the game.")
+            _int(num, "Purchase limit")
+            if not 0 <= num <= MAX_LIMIT:
+                raise ValueError(f"Purchase limit must be between 0 and {MAX_LIMIT} (0 = no limit).")
+            _int(per, "Limit period")
+            if per not in PERIODS:
+                raise ValueError("Limit period must be 0 (none), 1 daily, 2 weekly, 3 monthly, 4 lifetime or 5 season.")
+            new_id = max(i for i, _ in rows) + 1
+            while str(new_id) in self.base:
+                new_id += 1
+            sort = max(int(r.get("_iSortId", 0) or 0) for _, r in rows) + 1
+            ov[ADDED][str(new_id)] = {"class": cls, "from": src_id, "itemId": item_id, "cur": cur, "price": price,
+                                      "num": num, "per": per, "sort": sort}
+            self.save_overrides(ov)
+            self.cache = None
+            return {"row": new_id, "meta": self.meta()}
+
+    def remove_added(self, row):
+        with LOCK:
+            ov = self.load_overrides()
+            if str(row) not in ov[ADDED]:
+                raise ValueError(f"Row {row} is not an item added with this editor.")
+            ov[ADDED].pop(str(row))
+            ov[TABLE].pop(str(row), None)
+            self.save_overrides(ov)
+            self.cache = None
+            return {"meta": self.meta()}
 
     # ------------------------------------------------------------ apply / restore
     def _backup(self, stamp):
@@ -322,12 +424,23 @@ class ShopsEditor:
         for old in sorted(self.backups.glob(f"{TABLE}-*.json"))[:-MAX_BACKUPS]:
             old.unlink(missing_ok=True)
 
-    OVERLAY_FIELDS = (K_NUM, K_PER, K_PRICE)
+    OVERLAY_FIELDS = (K_NUM, K_PER, K_PRICE, K_ITEM)
+    ADDED_FIELDS = (K_ITEM, "_iSortId", "_iDiscount", "_iMerchantDiscount", "_iIsBuy", "_iIsLock", "_iRecommendID",
+                    K_NUM, K_PER, K_PRICE)
 
-    def write_overlay(self, ov, only=None):
+    def write_overlay(self, ov, only=None, added=None):
         """Lines for the client hook (ConfigOverlay) so the shop window shows the edited price and limit. Only this
         page's own table is replaced in client-overlay/config-overlay.tsv; the card lines of the Items page stay."""
         lines = []
+        orig = _index(read_json(self.original))
+        for rid in sorted(ov[ADDED] if added is None else added, key=int):
+            # an added item: the client copies the source row, then these fields are set on the copy
+            spec = ov[ADDED][rid]
+            row = self._synth(spec, rid, orig)
+            lines.append("\t".join([TABLE, rid, "@clone", str(spec["from"])]))
+            for f in self.ADDED_FIELDS:
+                v = row[f]
+                lines.append("\t".join([TABLE, rid, f, f"{v[0]}:{v[1]}" if isinstance(v, list) else str(v)]))
         for rid in sorted(ov[TABLE], key=int):
             if only is not None and rid not in only:
                 continue
@@ -352,6 +465,19 @@ class ShopsEditor:
             idx = _index(data)
             stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             fields, skipped = 0, []
+            added_ok = []
+            for rid, spec in sorted(ov[ADDED].items(), key=lambda kv: int(kv[0])):
+                if str(spec.get("from")) not in idx:
+                    skipped.append(rid)
+                    continue
+                row = self._synth(spec, rid, idx)
+                if isinstance(data, dict):
+                    data[rid] = row
+                else:
+                    data.append(row)
+                idx[rid] = row
+                added_ok.append(rid)
+                fields += 1
             for rid, flds in ov[TABLE].items():
                 if rid not in idx:
                     skipped.append(rid)
@@ -364,7 +490,7 @@ class ShopsEditor:
             st["applied_sha"] = sha256(self.live)
             st["applied_overrides"] = self.ov_hash(ov)
             self.save_state(st)
-            overlay = self.write_overlay(ov, only=set(idx) & set(ov[TABLE]))
+            overlay = self.write_overlay(ov, only=set(idx) & set(ov[TABLE]), added=added_ok)
             return {"rows": self.count(ov) - len(skipped), "fields": fields, "skippedRows": skipped,
                     "backup": stamp, "overlay": overlay, "published": dict(common.LAST_PUBLISH), "meta": self.meta()}
 
