@@ -1,0 +1,43 @@
+name: Discord notify
+
+# Posts a plain-text line (event + title only, no links) to Discord.
+# Needs two repository secrets: DISCORD_ISSUES_WEBHOOK and DISCORD_PRS_WEBHOOK.
+
+on:
+  issues:
+    types: [opened, closed]
+  pull_request:
+    types: [opened, closed]
+
+permissions: {}
+
+jobs:
+  issue:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to #issues
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_ISSUES_WEBHOOK }}
+          ACTION: ${{ github.event.action }}
+          TITLE: ${{ github.event.issue.title }}
+        run: |
+          [ -n "$WEBHOOK" ] || exit 0
+          jq -n --arg c "Issue ${ACTION}: ${TITLE}" '{content: $c, allowed_mentions: {parse: []}}' \
+            | curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK"
+
+  pull-request:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to #pull-requests
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_PRS_WEBHOOK }}
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          [ -n "$WEBHOOK" ] || exit 0
+          if [ "$ACTION" = "closed" ] && [ "$MERGED" = "true" ]; then ACTION=merged; fi
+          jq -n --arg c "PR ${ACTION}: ${TITLE}" '{content: $c, allowed_mentions: {parse: []}}' \
+            | curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK"
