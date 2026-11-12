@@ -16,6 +16,6 @@ public sealed partial class CombatService
         long shield = BuffConfig.Get(_data, buffId) is { } buff
             ? SkillShieldRules.Amount(buff, casterStats, _character.Stats(recipient)) : 0;
         if (shield > 0) await _buffs.AddSkillShieldAsync(recipient, buffId, durationMs, sourceId, shield);
-        else await _buffs.AddAsync(recipient, buffId, durationMs, sourceId);
+        else await _buffs.AddSkillBuffAsync(recipient, buffId, durationMs, sourceId);
     }
 }
