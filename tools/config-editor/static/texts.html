@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RO3 Plus - Descriptions</title>
+<style>
+:root{
+  --bg:#f4f6fa; --panel:#ffffff; --panel2:#f0f3f8; --line:#dfe5ee; --text:#1b2433; --muted:#6a778c;
+  --accent:#3b6df0; --accent-d:#2c55c7; --ok:#18a56b; --warn:#c98a0b; --bad:#d6404f; --chip:#e8eefc; --edit:#fff6dc;
+  --shadow:0 1px 2px rgba(20,30,50,.06),0 4px 14px rgba(20,30,50,.06);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0e1420; --panel:#151d2c; --panel2:#1b2638; --line:#27344b; --text:#e6ecf6; --muted:#8c9bb3;
+  --accent:#6b93ff; --accent-d:#5a82f0; --ok:#3ccf91; --warn:#f0b64a; --bad:#ff7380; --chip:#22314f; --edit:#3a3216;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:7px 14px;border-radius:8px}
+button:hover{background:var(--panel2)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{background:var(--accent-d)}
+button.primary:disabled{opacity:.5;cursor:default}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--text);background:var(--panel2)}
+input,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+header .path{color:var(--muted);font-size:12px;max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .spacer{flex:1}
+nav.top{display:flex;gap:4px;background:var(--panel2);padding:3px;border-radius:10px}
+nav.top a{padding:5px 14px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:600}
+nav.top a.on{background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+.pill{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)}
+details.more{position:relative}
+details.more summary{list-style:none;cursor:pointer;padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+details.more summary::-webkit-details-marker{display:none}
+details.more .menu{position:absolute;right:0;top:110%;z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;display:grid;gap:4px;min-width:260px}
+details.more .menu button{text-align:left;border-color:transparent}
+.banner{margin:12px 20px 0;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.banner.warn{border-color:var(--warn)} .banner.bad{border-color:var(--bad)} .banner.ok{border-color:var(--ok)}
+.banner .grow{flex:1}
+.tabs{display:flex;gap:2px;padding:10px 20px 0;flex-wrap:wrap}
+.tabs .tab{padding:8px 18px;border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;background:var(--panel2);color:var(--muted);font-weight:600;cursor:pointer}
+.tabs .tab.on{background:var(--panel);color:var(--text)}
+.tabs .tab small{font-weight:400;margin-left:6px}
+.classes{display:flex;gap:8px;flex-wrap:wrap;padding:12px 20px;margin:0 20px;background:var(--panel);border:1px solid var(--line);border-top:0;align-items:center}
+.chip{padding:5px 12px;border-radius:99px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:13px}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip small{opacity:.75;margin-left:4px}
+.hint{color:var(--muted);font-size:12px}
+main{flex:1;overflow:auto;padding:0 20px 20px;min-height:0}
+.card{background:var(--panel);border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;box-shadow:var(--shadow);overflow:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--panel2);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+td.num input{width:100%;max-width:120px;text-align:right}
+td.name{white-space:normal;min-width:180px}
+td.dim{color:var(--muted)}
+td.ed input,td.ed select{background:var(--edit);border-color:var(--warn)}
+tr.look td.sells{color:var(--muted)}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;background:var(--chip);color:var(--muted);margin-left:6px}
+.warnicon{color:var(--warn);font-weight:700;cursor:help}
+.addbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.addbar input{width:110px} .addbar .nm{min-width:160px;color:var(--muted)}
+tr.added td:first-child{border-left:3px solid var(--ok)}
+.tag.new{background:var(--ok);color:#fff}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.modal{position:fixed;inset:0;background:rgba(10,15,25,.55);display:none;align-items:center;justify-content:center;z-index:20}
+.modal.on{display:flex}
+.modal .box{background:var(--panel);border-radius:14px;box-shadow:var(--shadow);width:min(860px,94vw);max-height:86vh;display:flex;flex-direction:column}
+.modal .box h2{margin:0;padding:14px 18px;font-size:16px;border-bottom:1px solid var(--line)}
+.modal .body{padding:12px 18px;overflow:auto;flex:1}
+.modal .foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+.err{color:var(--bad);margin:2px 0}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;padding:9px 16px;border-radius:10px;box-shadow:var(--shadow);display:none;z-index:30;max-width:80vw}
+.toast.ok{background:var(--ok)}
+</style>
+<style>
+textarea{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;width:100%;min-height:84px;resize:vertical}
+.rowc{padding:12px 16px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:230px 1fr;gap:14px}
+.rowc h3{margin:0 0 4px;font-size:15px}
+.rowc .meta{color:var(--muted);font-size:12px}
+.rowc .btns{display:flex;gap:8px;margin-top:6px;align-items:center;flex-wrap:wrap}
+.rowc.edited{background:var(--edit)}
+.search{display:flex;gap:10px;padding:14px 20px;align-items:center;flex-wrap:wrap}
+.search input{width:min(420px,70vw)}
+main{padding:0 20px 20px}
+.card{border-top:1px solid var(--line);border-radius:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>RO3 Plus Config Editor</h1>
+  <nav class="top"><a href="/">Skills</a><a href="/items">Items</a><a href="/shops">Shops</a><a href="/texts" class="on">Descriptions</a></nav>
+  <span class="spacer"></span>
+  <span class="pill" id="pill">...</span>
+</header>
+<div class="banner"><span class="grow">Changes the item description the <b>game client</b> shows. It is written to the client overlay and copied into the client when you press Save, so <b>restart the client</b> to see it (no server restart needed). The server is not changed. An item that already has a description keeps its text id: every item sharing that text shows the new words (the page says how many).</span></div>
+<div class="search"><input id="q" placeholder="Item ID or part of the English name, e.g. 1001000 or Blue Potion" autofocus>
+  <button class="primary" id="go">Search</button><button id="mine">Show my edits</button></div>
+<main><div class="card" id="card"><div class="empty">Type an item ID or name above.</div></div></main>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function toast(msg, ok){ const t=$("toast"); t.textContent=msg; t.className="toast"+(ok?" ok":""); t.style.display="block"; clearTimeout(toast.h); toast.h=setTimeout(()=>t.style.display="none", ok?9000:7000); }
+async function api(path, body){
+  const r = await fetch(path, body===undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  const t = await r.text(); let j; try{ j=JSON.parse(t);}catch(e){ j=null; }
+  if(!r.ok) throw new Error((j&&j.error)||t||("HTTP "+r.status));
+  return j ?? t;
+}
+let last = "";
+async function search(q){
+  last = q;
+  try{
+    const d = await api("/api/texts/search?q="+encodeURIComponent(q));
+    $("pill").textContent = d.edited + " edited";
+    render(d.rows, q);
+  }catch(e){ $("card").innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+function render(rows, q){
+  if(!rows.length){ $("card").innerHTML = `<div class="empty">${q ? "No item found." : "No edited descriptions yet. Search for an item."}</div>`; return; }
+  $("card").innerHTML = rows.map(r=>`<div class="rowc ${r.edited?"edited":""}" data-id="${r.id}">
+    <div><h3>${esc(r.name) || "(no English name)"}</h3><div class="meta">Item ${r.id}${r.edited?' <span class="tag">edited</span>':""}</div>
+      <div class="meta">${r.hasDesc ? "Has a description (text id "+r.descId+")"+(r.sharedBy? "; <b>"+r.sharedBy+" other item"+(r.sharedBy>1?"s":"")+" share this text</b>":"") : "No description yet: saving gives it one."}</div></div>
+    <div><textarea data-t="1" placeholder="Description shown in the item window">${esc(r.text)}</textarea>
+      <div class="btns"><button class="primary" data-save="1">Save</button>${r.edited?'<button data-reset="1">Back to original</button>':""}
+      <span class="hint">Keep placeholders like @{1} if the original has them. A new line is allowed.</span></div></div></div>`).join("");
+  $("card").querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>save(b.closest(".rowc")));
+  $("card").querySelectorAll("[data-reset]").forEach(b=>b.onclick=()=>reset(b.closest(".rowc")));
+}
+function done(r, what){
+  const p = r.published || {};
+  toast(what+(p.ok ? " Copied into the client; restart the client to see it." : " "+(p.message||"")), !!p.ok);
+}
+async function save(el){
+  try{ done(await api("/api/texts/set", {item:+el.dataset.id, text:el.querySelector("textarea").value}), "Saved."); await search(last); }
+  catch(e){ toast(e.message); }
+}
+async function reset(el){
+  try{ done(await api("/api/texts/reset", {item:+el.dataset.id}), "Back to the original."); await search(last); }
+  catch(e){ toast(e.message); }
+}
+$("go").onclick = ()=>search($("q").value);
+$("q").onkeydown = e=>{ if(e.key==="Enter") search($("q").value); };
+$("mine").onclick = ()=>{ $("q").value=""; search(""); };
+search("");
+</script>
+</body>
+</html>

@@ -256,7 +256,17 @@ namespace Ro3Emu.ClientHooks
             return First(_trans?.Obf_HuA(key, param));
         }
 
-        private static string Unescape(string s) => s.Replace("\\n", "\n").Replace("\\t", "\t").Replace("\\\\", "\\");
+        private static string Unescape(string s)
+        {
+            var text = new System.Text.StringBuilder(s.Length);
+            for (var i = 0; i < s.Length; i++)
+            {
+                if (s[i] != '\\' || i + 1 >= s.Length) { text.Append(s[i]); continue; }
+                var next = s[++i];
+                text.Append(next == 'n' ? '\n' : next == 't' ? '\t' : next);
+            }
+            return text.ToString();
+        }
 
         private static void Hook(LA_LuaManager manager, Obf_R.Obf_ff global, Obf_R.Obf_ff holder, string table, Dictionary<long, RowEdit> rows)
         {
