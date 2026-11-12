@@ -170,6 +170,8 @@ public static partial class ServerHost
         builder.Services.AddSingleton<WorldInteractionService>();
         builder.Services.AddSingleton<FriendExtraService>();
         builder.Services.AddSingleton<ChatService>();
+        builder.Services.AddSingleton<PrivateChatStore>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<PrivateChatStore>());
         builder.Services.AddSingleton<ChatFloodGuard>();
         builder.Services.AddSingleton<FeedbackService>();
         builder.Services.AddSingleton<GmCommands>();
@@ -263,6 +265,7 @@ public static partial class ServerHost
         app.Services.GetRequiredService<CharacterService>().ExpCredited.Add(app.Services.GetRequiredService<CheatMonitor>().ExpGained);
         // Team chat channels (ChatService cannot take TeamService: TeamService -> ChatService).
         app.Services.GetRequiredService<ChatService>().TeamChannelAllowed = app.Services.GetRequiredService<TeamService>().ChannelAllowed;
+        app.Services.GetRequiredService<ChatService>().PrivateChats = app.Services.GetRequiredService<PrivateChatStore>();
         app.Use(async (context, next) =>
         {
             if (HttpMethods.IsPost(context.Request.Method) && app.Services.GetRequiredService<GameLoop>().Phase != GameLoopPhase.Accepting)

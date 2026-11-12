@@ -73,7 +73,9 @@ public sealed partial class ShopService
     }
 
     private const int WaitTake = 1, AlreadyTake = 2, OutTime = 3;
-    private const int GiftMessageMaxLength = 20; // PublicParamConfig.FriendsGiftTextMaxNum
+    // PublicParamConfig.FriendsGiftTextMaxNum (20) only limits text the player types. The client also sends its
+    // longer preset messages (~56 characters), which a cap of 20 rejected with "Invalid gift message length".
+    private const int GiftMessageMaxLength = 200;
     private const int GiftRefundMailTemplate = 1115; // PublicParamConfig.PresentRefundMailId
     private static readonly TimeSpan GiftOrderLifetime = TimeSpan.FromSeconds(86400); // PublicParamConfig.OrderExpireTime
     /// <summary>Resolved orders older than this are dropped from a sent-gifts list so the blob does not grow forever.</summary>
@@ -82,8 +84,12 @@ public sealed partial class ShopService
     private GiftState LoadGifts(long role) =>
         _roles.LoadGifts(role) is { } bytes ? JsonSerializer.Deserialize<GiftState>(bytes) ?? new() : new();
 
+    /// <summary>The client puts the order id into the gift card's JSON (kSendGiftData.iOrderId) and finds the order again
+    /// from that number. Lua reads a JSON number as a double, which keeps only 53 bits: a 63-bit id comes back changed, the
+    /// order is not found and the card shows "Gift claimed" with no claim button. So ids stay below 2^52.
+    /// Experiment: 2^52 alone did not change the card, so ids now also fit a signed 32-bit integer (100000000..2^31-1).</summary>
     private static long NewOrderId() =>
-        BitConverter.ToInt64(SHA256.HashData(Encoding.UTF8.GetBytes(Guid.NewGuid().ToString())), 0) & long.MaxValue;
+        100_000_000L + (BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(Guid.NewGuid().ToString())), 0) % (int.MaxValue - 100_000_000L));
 
     private bool Expired(GiftOrder order) => Now - order.CreatedUtc > GiftOrderLifetime.TotalSeconds;
 
@@ -112,6 +118,13 @@ public sealed partial class ShopService
             Result = code, OrderId = orderId, CommodityId = req.BuyReq?.CommodityId ?? 0, TargetId = recipientId,
             GiftContent = req.GiftContent,
         });
+        if (code == 0)
+        {
+            // Experiment: the lists were pushed inside PresentLockedAsync, i.e. before the client saw its own 82335
+            // response (and before it built the chat card). Push the sent list once more now that the response is out.
+            await PushSentAsync(session);
+            PushReceivedIfOnline(recipientId);
+        }
     }
 
     private async Task<(int Code, long OrderId)> PresentLockedAsync(GameSession session, CommodityPresentReq req, long recipientId)
@@ -295,7 +308,17 @@ public sealed partial class ShopService
     private static PresentOrderClientInfo ToPresentOrderInfo(GiftOrder o) => new()
     {
         OrderId = o.OrderId, SenderId = o.SenderId, SenderName = o.SenderName, AppranceId = o.AppearanceId,
-        AppranceAwardId = o.AppearanceAwardId, CreateTime = o.CreatedUtc, State = o.State, GiftContent = o.GiftContent,
+        AppranceAwardId = o.AppearanceAwardId, CreateTime = o.CreatedUtc * 1000 /* client card: rest = OrderExpireTime - (now - createTime/1000); wire value is milliseconds */, State = WireState(o.State), GiftContent = o.GiftContent,
+    };
+
+    /// <summary>The wire value of an order's state is the client's EPresentOrderState (proto.pb.bytes): 0 Pending,
+    /// 1 Picked, 2 WaitingRefund, 3 Refunded. The chat gift card shows "claimed" for 1, so a waiting gift must be 0.
+    /// Internally the stored state keeps the older 1 WaitTake / 2 AlreadyTake / 3 OutTime numbering.</summary>
+    private static int WireState(int state) => state switch
+    {
+        WaitTake => 0,
+        AlreadyTake => 1,
+        _ => 3,
     };
 
     /// <summary>Effective state at read time: an unclaimed order past its lifetime displays OutTime even in the rare
@@ -303,8 +326,8 @@ public sealed partial class ShopService
     private SentGiftInfo ToSentGiftInfo(GiftOrder o) => new()
     {
         OrderId = o.OrderId, RecipientId = o.RecipientId, RecipientName = o.RecipientName, AppranceId = o.AppearanceId,
-        AppranceAwardId = o.AppearanceAwardId, CreateTime = o.CreatedUtc,
-        State = o.State == WaitTake && Expired(o) ? OutTime : o.State, GiftContent = o.GiftContent,
+        AppranceAwardId = o.AppearanceAwardId, CreateTime = o.CreatedUtc * 1000 /* client card: rest = OrderExpireTime - (now - createTime/1000); wire value is milliseconds */,
+        State = WireState(o.State == WaitTake && Expired(o) ? OutTime : o.State), GiftContent = o.GiftContent,
         CurrencyId = o.CurrencyId, CurrencyCount = o.CurrencyCount,
     };
 
@@ -315,5 +338,27 @@ public sealed partial class ShopService
     {
         await PushReceivedAsync(session);
         await PushSentAsync(session);
+        // Then, outside the login call and under the usual lock: any gift past its lifetime that was never picked
+        // vanishes from the recipient and its price (only the currency, never the fashion) is mailed back to the sender.
+        _loop.PostOwned(session, () => SettleOnLoginAsync(session));
     }
+
+    private async Task SettleOnLoginAsync(GameSession session)
+    {
+        if (session.Role == null) return;
+        try
+        {
+            using (await CharacterService.Lock(session, SettlementKeys(session.Role.Id)))
+                await SettleMineLockedAsync(session);
+            await PushReceivedAsync(session);
+            await PushSentAsync(session);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            LogLoginSettleFailed(_log, e);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Settling expired gift orders at login failed; the next gift or pick settles them")]
+    private static partial void LogLoginSettleFailed(ILogger logger, Exception exception);
 }

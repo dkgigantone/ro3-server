@@ -126,8 +126,19 @@ public sealed partial class ChatService
     public async Task OnRoleEnteredAsync(GameSession session)
     {
         lock (_sync) _online[session.Role!.Id] = session;
-        await Task.CompletedTask; // functions (chat channels included) are opened by FunctionService
+        // Whispers (gift cards included) sent while this role was offline: pushed once now; the history request
+        // below returns them as well, so the chat window shows them whichever the client uses.
+        if (PrivateChats?.TakeUndelivered(session.Role.Id) is { Count: > 0 } missed)
+            foreach (var message in missed)
+            {
+                try { await DownAsync(session, Cmd.NotifyNewText, new NotifyNewTextChatMessage { Msg = message }); }
+                catch (Exception e) when (e is IOException or System.Net.Sockets.SocketException or ObjectDisposedException) { }
+            }
+        // functions (chat channels included) are opened by FunctionService
     }
+
+    /// <summary>Seven-day private chat history (<see cref="PrivateChatStore"/>); set at startup, null in bare test hosts.</summary>
+    public PrivateChatStore? PrivateChats { get; set; }
 
     public void OnRoleLeft(GameSession session)
     {
@@ -316,9 +327,16 @@ public sealed partial class ChatService
                 break;
 
             case Cmd.GetHistory:
-                // No history kept: answer with both lists absent (one present and one absent makes the Lua index nil).
+                // Group channels keep no history here: answer with both lists absent (one present and one absent makes the
+                // Lua index nil). Private chats answer from the seven-day store.
                 var history = GetHistoryMessageRequest.Parser.ParseFrom(body.Span);
-                await DownAsync(session, cmd, new GetHistoryMessageResponse { ChatResult = true, TargetId = history.TargetId, ChatType = history.ChatType });
+                var reply = new GetHistoryMessageResponse { ChatResult = true, TargetId = history.TargetId, ChatType = history.ChatType };
+                if (history.ChatType == ChatTypePrivate && PrivateChats != null && long.TryParse(history.TargetId, out long friendId))
+                {
+                    var stored = PrivateChats.History(session.Role.Id, friendId, history.Count == 0 ? 50 : (int)Math.Min(history.Count, 100u));
+                    if (stored.Count > 0) reply.MsgList.AddRange(stored);
+                }
+                await DownAsync(session, cmd, reply);
                 break;
 
             case Cmd.DeleteHistory:
@@ -421,6 +439,8 @@ public sealed partial class ChatService
         if (req.ChatType != ChatTypePrivate && TeamChannelId(req.ReceiveId) != null)
             recipients = [.. recipients.Where(p => p == sender || GuildAllowed(p, req.ReceiveId))];
         if (req.ChatType != ChatTypePrivate) Remember(message, sender);
+        else if (long.TryParse(req.ReceiveId, out long whisperTarget) && whisperTarget != sender.Role.Id)
+            PrivateChats?.Add(message, sender.Role.Id, whisperTarget, delivered: recipients.Count > 1);
         _log.LogInformation("Chat {Name} -> {Target} ({Count} recipient(s)): {Text}", sender.Role.Name, req.ReceiveId, recipients.Count, req.Content);
 
         await DownAsync(sender, Cmd.SendText, new SendTextChatMessageResponse { ChatResult = true, Msg = message });
