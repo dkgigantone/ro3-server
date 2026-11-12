@@ -9,6 +9,7 @@ text id shows the new words). Nothing on the server changes; restart the client 
 Your edits live in overrides/texts.json (commit it).
 """
 import json
+import re
 
 from common import APP_DIR, LOCK, atomic_write, compact, read_json, update_overlay
 
@@ -22,6 +23,16 @@ def _index(data):
     if isinstance(data, dict):
         return data
     return {str(r["_iID"]): r for r in data if isinstance(r, dict) and "_iID" in r}
+
+
+UNLOCKS = {"200": "an appearance", "201": "a mount", "202": "an emoji", "212": "an emoji set"}
+
+
+def _num(x):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _esc(text):
@@ -45,6 +56,7 @@ class TextsEditor:
                 raise FileNotFoundError(f"Could not find {path}. Pick the RO3Emu folder that contains data\\config.")
             self.items = _index(read_json(path, {}))
             self.loc = _index(read_json(self.config_dir / "Localization_en.json", {}) or {})
+            self.buffs = _index(read_json(self.config_dir / "BuffConfig.json", {}) or {})
             self.shared = {}
             for r in self.items.values():
                 d = self._desc_id(r)
@@ -62,6 +74,65 @@ class TextsEditor:
     def _text(self, tid):
         r = self.loc.get(str(tid))
         return r.get("_kDes", "") if isinstance(r, dict) else ""
+
+    def _fmt(self, ids):
+        """Text of a text-id list [id, arg1, arg2, ...] with @{n} / ${n} filled in; '' when unknown."""
+        if not isinstance(ids, list) or not ids:
+            return ""
+        out = self._text(ids[0])
+        if not out:
+            return ""
+        for n, arg in enumerate(ids[1:], start=1):
+            out = out.replace("@{%d}" % n, str(arg)).replace("${%d}" % n, str(arg))
+        return re.sub(r"[@$]\{\d+\}", "", out).strip()
+
+    def suggest(self, item_id):
+        """A starting text for an item's description, built from its real data (effect, cooldown, level).
+        Returns {"text": str, "notes": [..]}; text is '' when there is nothing to build it from."""
+        with LOCK:
+            self._load()
+            r = self.items.get(str(int(item_id)))
+            if r is None:
+                raise ValueError(f"Item {item_id} does not exist in ItemConfig.")
+            lines, notes = [], []
+            for e in r.get("_iUseEffect") or []:
+                if not e or e[0] in ("", None):
+                    continue
+                a, args = str(e[0]), [str(x) for x in e[1:]]
+                if a == "100" and len(args) >= 3:
+                    what = {"1": "HP", "2": "SP"}.get(args[0])
+                    flat, pct = _num(args[1]), _num(args[2]) / 100
+                    parts = ([f"{flat:g} {what}"] if flat > 0 else []) + ([f"{pct:g}% of Max {what}"] if pct > 0 else [])
+                    if what and parts:
+                        lines.append("Restores " + " plus ".join(parts) + " when used.")
+                    else:
+                        notes.append(f"Could not read the restore effect (args {', '.join(args)}).")
+                elif a in ("203", "10") and args:
+                    b = self.buffs.get(args[0])
+                    text = self._fmt(b.get("_iDescription")) if isinstance(b, dict) else ""
+                    name = self._fmt(b.get("_iName")) if isinstance(b, dict) else ""
+                    if text:
+                        lines.append(text if text.endswith((".", "!")) else text + ".")
+                    elif name:
+                        lines.append(f"Gives the {name} effect.")
+                    else:
+                        notes.append(f"Buff {args[0]} has no English text.")
+                elif a in UNLOCKS:
+                    lines.append(f"Unlocks {UNLOCKS[a]}.")
+                elif a == "105":
+                    lines.append("Shouts a message to everyone in the world.")
+                else:
+                    notes.append(f"Effect type {a} is not supported yet: describe it by hand.")
+            if lines:
+                cd = _num(r.get("_iCD")) / 1000
+                if cd > 0:
+                    lines.append(f"Cooldown: {cd:g} sec.")
+                lv = int(_num(r.get("_iLevelNeed")))
+                if lv > 1:
+                    lines.append(f"Required level: {lv}.")
+            elif not notes:
+                notes.append("This item has no use effect, so there is nothing to build a description from. Write it by hand.")
+            return {"text": " ".join(lines[:1]) + ("\n" + " ".join(lines[1:]) if len(lines) > 1 else ""), "notes": notes}
 
     def load_overrides(self):
         ov = read_json(OVERRIDES, {}) or {}

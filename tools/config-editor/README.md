@@ -47,3 +47,5 @@ The untouched original lives in `state/` (not committed). **Put the untouched or
 - Client only: Save writes `Text` and `ItemConfig _iDescription` lines into `client-overlay/config-overlay.tsv` and copies it into `<client>\ro3emu\custom\`. Restart the client to see the change. The server is not touched.
 - An item with no description gets a new text id (99920000000 + item id). An item that already has one keeps its id, so every item that shares that text shows the new words (the page says how many).
 - Skill descriptions are not editable yet.
+
+Suggest button: on the Descriptions page, Suggest fills the box from the item's data (restore amount, buff text, cooldown, required level). It only knows a few effect types (restore HP/SP, buffs, unlock appearance/mount/emoji, world horn); for anything else it says so and you write the text by hand. Nothing is saved until you press Save.
