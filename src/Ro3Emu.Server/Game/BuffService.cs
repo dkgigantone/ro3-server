@@ -138,7 +138,12 @@ public sealed partial class BuffService : IGameTicker
     /// <summary>Apply a player skill's shield buff (<see cref="SkillShieldRules"/>): each pile adds one
     /// <paramref name="shieldPerPile"/> to the live shield, up to one per pile (inferred).</summary>
     internal Task AddSkillShieldAsync(GameSession p, int configId, int durationMs, long sourceId, long shieldPerPile) =>
-        AddCoreAsync(p, configId, durationMs, sourceId, null, shieldPerPile, stackShield: true);
+        AddCoreAsync(p, configId, durationMs, sourceId, null, shieldPerPile, stackShield: true, renew: true);
+
+    /// <summary>Apply a player skill's buff. Cast again while it is live, it reaches the client as a new buff (see <c>renew</c> in
+    /// <see cref="AddCoreAsync"/>), so its sound and effect play again.</summary>
+    internal Task AddSkillBuffAsync(GameSession p, int configId, int durationMs, long sourceId) =>
+        AddCoreAsync(p, configId, durationMs, sourceId, null, renew: true);
 
     internal Task AddGuardianAsync(GameSession p, int configId, int durationMs, long sourceId, long shieldAmount = 0,
         bool shieldDebuffImmunity = false, int hpFloorBasisPoints = 0, double attributeMultiplier = 1) =>
@@ -147,7 +152,7 @@ public sealed partial class BuffService : IGameTicker
 
     private async Task AddCoreAsync(GameSession p, int configId, int durationMs, long sourceId, int? explicitPileCount,
         long shieldAmount = 0, bool guardianOwned = false, bool shieldDebuffImmunity = false, int hpFloorBasisPoints = 0,
-        double attributeMultiplier = 1, bool stackShield = false)
+        double attributeMultiplier = 1, bool stackShield = false, bool renew = false)
     {
         if (p.Role == null || _data.Row("BuffConfig", configId) is not { } row || GameData.Int(row, "_iBuffID") <= 0) return;
         if (await RejectIncomingAsync(p, row, guardianOwned, sourceId)) return;
@@ -166,10 +171,22 @@ public sealed partial class BuffService : IGameTicker
             ? Math.Min(maxStack, existing.PileCount + 1) : 1);
         // LC_Buff_System.UpdateBuffData copies a known GUID's times, stack and source, never its config: a new level under the old GUID would keep the old row on the client.
         if (existing != null && existing.ConfigId != configId) { await RemoveAsync(p, existing); existing = null; }
+        long guid = existing?.Guid ?? Interlocked.Increment(ref _guids);
+        // (inferred) The client plays a buff's sound and effect when it sees a new GUID; a known one is only a refresh. A skill cast again while its
+        // buff lives is told as the old buff ending and a new one starting. Ticking and halo buffs keep their GUID (their timers are keyed by it).
+        if (renew && existing != null && pile == 1 && Visible(existing) && !Rules.Periodic.ContainsKey(configId) && !Rules.Halos.ContainsKey(configId))
+        {
+            await ToPlayerAndViewersAsync(p, BuffRemove, new BuffRemoveNotify { UnitId = p.Role.Id, BuffGuids = { existing.Guid } });
+            await ToPlayerAndViewersAsync(p, AoiAttrChange, new AOIAttrChange
+            {
+                EntityUuid = (ulong)p.Role.Id, BuffInfo = new AoIBuffInfo { RemoveBuffs = { existing.Guid } },
+            });
+            guid = Interlocked.Increment(ref _guids);
+        }
         IEnumerable<(long Id, double Value)> pairs = GameData.Pairs(row, "_kChangeAttri");
         if (SourceAttributes != null) pairs = SourceAttributes(sourceId, row, [.. pairs]);
         var changes = pairs.Select(c => (c.Id, c.Value * pile * attributeMultiplier)).ToList();
-        var buff = new ActiveBuff(existing?.Guid ?? Interlocked.Increment(ref _guids), configId,
+        var buff = new ActiveBuff(guid, configId,
             now + durationMs, durationMs, changes, sourceId, pile, StateOrdinal: StateFor(configId, group, guardianOwned),
             ShieldRemaining: stackShield ? SkillShieldRules.Stacked(LiveShield(existing), shieldAmount, pile) : Math.Max(0, shieldAmount),
             IsGuardianOwned: guardianOwned, ShieldDebuffImmunity: shieldDebuffImmunity, HpFloorBasisPoints: hpFloorBasisPoints);
