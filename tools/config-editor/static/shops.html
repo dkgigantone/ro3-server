@@ -82,6 +82,7 @@ tr.look td.sells{color:var(--muted)}
   <nav class="top"><a href="/">Skills</a><a href="/items">Items</a><a href="/shops" class="on">Shops</a></nav>
   <span class="path" id="home"></span>
   <span class="pill" id="pill">...</span>
+  <button class="ghost" id="btnClient" title="The game client the shop overlay is copied into on Apply">Client: ...</button>
   <span class="spacer"></span>
   <button id="btnExport">Export CSV</button>
   <button id="btnImport">Import CSV...</button>
@@ -112,7 +113,7 @@ const K = {num:"_iPurchaseNum", per:"_iPurchaseTimesLimit", pair:"_kItemPerPrice
 let D = null, OV = {}, META = null, group = 0, cls = null, csvText = "";
 
 function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-function toast(msg, ok){ const t=$("toast"); t.textContent=msg; t.className="toast"+(ok?" ok":""); t.style.display="block"; clearTimeout(toast.h); toast.h=setTimeout(()=>t.style.display="none", ok?3500:7000); }
+function toast(msg, ok){ const t=$("toast"); t.textContent=msg; t.className="toast"+(ok?" ok":""); t.style.display="block"; clearTimeout(toast.h); toast.h=setTimeout(()=>t.style.display="none", ok?9000:7000); }
 async function api(path, body){
   const r = await fetch(path, body===undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
   const t = await r.text(); let j; try{ j=JSON.parse(t);}catch(e){ j=null; }
@@ -142,7 +143,7 @@ function renderStatus(){
   const n = m.changedRows;
   pill.textContent = m.fileStatus==="external" ? "file changed outside" : n===0 ? (m.fileStatus==="applied" ? "originals differ (applied)" : "no edits") : (m.inSync ? n+" edited, applied" : n+" edited, not applied");
   pill.className = "pill " + (m.fileStatus==="external" || (n>0 && !m.inSync) ? "warn" : "ok");
-  $("btnApply").disabled = !(n>0 && !m.inSync) && !(n===0 && m.fileStatus==="applied");
+  $("btnApply").disabled = !(n>0 || m.fileStatus==="applied");   // re-applying is safe; it also rewrites the client overlay
   let html = "";
   if(m.fileStatus==="external") html += `<div class="banner bad"><span class="grow">ShopCommodityConfig.json was changed outside this tool. Apply is paused so nothing is overwritten.</span><button id="btnRebase2">Use current file as new original</button></div>`;
   else if(n>0 && m.inSync) html += `<div class="banner ok"><span class="grow">Applied. ${m.serverRunning ? "The server is running: restart it" : "Start (or restart) the server"} so it loads the new shop data.</span></div>`;
@@ -215,7 +216,9 @@ function findRow(id){ for(const g of D.groups) for(const c of g.classes) for(con
 
 $("btnApply").onclick = async ()=>{
   $("btnApply").disabled = true;
-  try{ const r = await api("/api/shops/apply", {}); META = r.meta; toast("Applied "+r.rows+" row"+(r.rows===1?"":"s")+" ("+r.fields+" fields). Backup "+r.backup+". Restart the server.", true); }
+  try{ const r = await api("/api/shops/apply", {}); META = r.meta;
+    const p = r.published || {};
+    toast("Applied "+r.rows+" row"+(r.rows===1?"":"s")+" ("+r.fields+" fields). "+(p.ok ? "Overlay copied into the client. Now start the server, then the client." : p.message+" Server data is applied; restart the server."), p.ok); }
   catch(e){ toast(e.message); }
   render();
 };
@@ -258,6 +261,11 @@ $("mApply").onclick = async ()=>{
   try{ const r = await api("/api/shops/import-apply", {csv:csvText}); $("modal").classList.remove("on"); await load(); toast("Imported "+r.imported+" change"+(r.imported===1?"":"s")+". Press Apply to game to write them.", true); }
   catch(e){ toast(e.message); }
 };
+async function showClient(){ try{ const c = await api("/api/client-dir"); $("btnClient").textContent = "Client: "+(c.dir || "not set"); $("btnClient").title = c.dir || "Click to set the game client folder"; }catch(e){} }
+$("btnClient").onclick = async ()=>{ const cur = (await api("/api/client-dir")).dir || "C:\\Games\\Ragnarok3-Official";
+  const v = prompt("Game client folder (the one that contains ro3_Data):", cur); if(!v) return;
+  try{ await api("/api/client-dir", {dir:v}); await showClient(); toast("Client folder saved.", true);}catch(e){toast(e.message);} };
+showClient();
 load().catch(e=>{ $("card").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
 </script>
 </body>

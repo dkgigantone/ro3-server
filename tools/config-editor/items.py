@@ -17,7 +17,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from common import APP_DIR, LOCK, STATE_DIR, atomic_write, compact, read_json, server_running, sha256
+import common
+from common import APP_DIR, LOCK, STATE_DIR, atomic_write, compact, read_json, server_running, sha256, update_overlay
 
 OVERRIDES = APP_DIR / "overrides" / "items.json"
 MAX_BACKUPS = 5
@@ -481,20 +482,16 @@ class ItemsEditor:
 
     def write_overlay(self, ov):
         """client-overlay/config-overlay.tsv: the edited card rows for the client hook (ConfigOverlay), so the card
-        window shows the edited numbers. Copy it to <client>\\ro3emu\\custom\\. Always rewritten (empty = nothing edited)."""
-        lines = ["# RO3 Plus Config Editor: edited rows the client should show. Table<TAB>Row<TAB>Field<TAB>attribute:value;..."]
+        window shows the edited numbers. Copy it to <client>\\ro3emu\\custom\\. Only the card lines are replaced;
+        lines written by the Shops page stay (empty = no card edits)."""
+        lines = []
         for table, (field, kind) in LINE_FIELDS.items():
             if kind != "pair":
                 continue
             for rid, flds in sorted(ov.get(table, {}).items(), key=lambda kv: int(kv[0])):
                 if field in flds:
                     lines.append("\t".join([table, rid, field, ";".join(f"{a}:{v}" for a, v in flds[field])]))
-        path = APP_DIR / "client-overlay" / "config-overlay.tsv"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
-        tmp.replace(path)
-        return str(path)
+        return update_overlay({t for t, (_, k) in LINE_FIELDS.items() if k == "pair"}, lines)
 
     def apply(self):
         with LOCK:
@@ -531,7 +528,7 @@ class ItemsEditor:
             self.save_state(st)
             overlay = self.write_overlay(ov)
             return {"rows": self.count(ov) - len(skipped), "fields": fields, "skippedRows": skipped,
-                    "written": written, "backup": stamp, "overlay": overlay, "meta": self.meta()}
+                    "written": written, "backup": stamp, "overlay": overlay, "published": dict(common.LAST_PUBLISH), "meta": self.meta()}
 
     def restore_original(self):
         with LOCK:
