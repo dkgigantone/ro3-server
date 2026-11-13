@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 
 from common import APP_DIR, LOCK, STATE_DIR, atomic_write, client_dir, compact, read_json, server_running, set_client_dir, sha256
 from items import ItemsEditor
+from levelpenalty import LevelPenaltyEditor
 from mobs import MobsEditor
 from spawns import SpawnEditor
 from shops import ShopsEditor
@@ -352,6 +353,7 @@ class Handler(BaseHTTPRequestHandler):
     texts: TextsEditor = None
     mobs: MobsEditor = None
     spawns: SpawnEditor = None
+    levelpenalty: LevelPenaltyEditor = None
 
     def log_message(self, *a):
         pass
@@ -398,6 +400,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, (STATIC / "texts.html").read_bytes(), "text/html")
             if path == "/mobs":
                 return self.send(200, (STATIC / "mobs.html").read_bytes(), "text/html")
+            if path == "/levelpenalty":
+                return self.send(200, (STATIC / "levelpenalty.html").read_bytes(), "text/html")
+            if path == "/api/levelpenalty/get":
+                return self.ok(self.levelpenalty.get())
             if path == "/api/mobs/meta":
                 return self.ok(self.mobs.meta())
             if path == "/api/mobs/search":
@@ -546,6 +552,23 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/mobs/rebaseline":
                 self.mobs.rebaseline()
                 return self.ok(self.mobs.meta())
+            if path == "/api/levelpenalty/set":
+                return self.ok(self.levelpenalty.set_steps(body["kind"], body.get("plan"), body.get("steps")))
+            if path == "/api/levelpenalty/preview":
+                return self.ok(self.levelpenalty.preview(body["kind"], body.get("plan"), body.get("steps")))
+            if path == "/api/levelpenalty/check":
+                return self.ok(self.levelpenalty.check(body["kind"], body.get("plan"), body.get("steps"), body["player"], body["monster"]))
+            if path == "/api/levelpenalty/reset":
+                return self.ok(self.levelpenalty.reset(body["kind"], body.get("plan")))
+            if path == "/api/levelpenalty/reset-all":
+                return self.ok(self.levelpenalty.reset_all())
+            if path == "/api/levelpenalty/apply":
+                return self.ok(self.levelpenalty.apply())
+            if path == "/api/levelpenalty/restore-original":
+                return self.ok(self.levelpenalty.restore_original())
+            if path == "/api/levelpenalty/rebaseline":
+                self.levelpenalty.rebaseline()
+                return self.ok(self.levelpenalty.meta())
             if path == "/api/set-home":
                 home = Path(body["home"])
                 new = Editor(home)
@@ -556,6 +579,7 @@ class Handler(BaseHTTPRequestHandler):
                 Handler.texts = TextsEditor(home)
                 Handler.mobs = MobsEditor(home)
                 Handler.spawns = SpawnEditor(home)
+                Handler.levelpenalty = LevelPenaltyEditor(home)
                 STATE_DIR.mkdir(parents=True, exist_ok=True)
                 atomic_write(SETTINGS, json.dumps({"home": str(home)}))
                 return self.ok(new.meta())
@@ -590,6 +614,7 @@ def main():
     Handler.texts = TextsEditor(Handler.editor.home)
     Handler.mobs = MobsEditor(Handler.editor.home)
     Handler.spawns = SpawnEditor(Handler.editor.home)
+    Handler.levelpenalty = LevelPenaltyEditor(Handler.editor.home)
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     url = f"http://127.0.0.1:{args.port}/"
     print(f"RO3 Plus Config Editor\n  game folder: {Handler.editor.home}\n  open: {url}\n  (close this window to stop)")
