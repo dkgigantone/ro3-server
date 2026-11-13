@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RO3 Plus - Mob Editor</title>
+<style>
+:root{
+  --bg:#f4f6fa; --panel:#ffffff; --panel2:#f0f3f8; --line:#dfe5ee; --text:#1b2433; --muted:#6a778c;
+  --accent:#3b6df0; --accent-d:#2c55c7; --ok:#18a56b; --warn:#c98a0b; --bad:#d6404f; --chip:#e8eefc; --edit:#fff6dc;
+  --shadow:0 1px 2px rgba(20,30,50,.06),0 4px 14px rgba(20,30,50,.06);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0e1420; --panel:#151d2c; --panel2:#1b2638; --line:#27344b; --text:#e6ecf6; --muted:#8c9bb3;
+  --accent:#6b93ff; --accent-d:#5a82f0; --ok:#3ccf91; --warn:#f0b64a; --bad:#ff7380; --chip:#22314f; --edit:#3a3216;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:7px 14px;border-radius:8px}
+button:hover{background:var(--panel2)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{background:var(--accent-d)}
+button.primary:disabled{opacity:.5;cursor:default}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--text);background:var(--panel2)}
+input,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+header .path{color:var(--muted);font-size:12px;max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .spacer{flex:1}
+nav.top{display:flex;gap:4px;background:var(--panel2);padding:3px;border-radius:10px}
+nav.top a{padding:5px 14px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:600}
+nav.top a.on{background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+.pill{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)}
+details.more{position:relative}
+details.more summary{list-style:none;cursor:pointer;padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+details.more summary::-webkit-details-marker{display:none}
+details.more .menu{position:absolute;right:0;top:110%;z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;display:grid;gap:4px;min-width:260px}
+details.more .menu button{text-align:left;border-color:transparent}
+.banner{margin:12px 20px 0;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.banner.warn{border-color:var(--warn)} .banner.bad{border-color:var(--bad)} .banner.ok{border-color:var(--ok)}
+.banner .grow{flex:1}
+.tabs{display:flex;gap:2px;padding:10px 20px 0;flex-wrap:wrap}
+.tabs .tab{padding:8px 18px;border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;background:var(--panel2);color:var(--muted);font-weight:600;cursor:pointer}
+.tabs .tab.on{background:var(--panel);color:var(--text)}
+.tabs .tab small{font-weight:400;margin-left:6px}
+.classes{display:flex;gap:8px;flex-wrap:wrap;padding:12px 20px;margin:0 20px;background:var(--panel);border:1px solid var(--line);border-top:0;align-items:center}
+.chip{padding:5px 12px;border-radius:99px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:13px}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip small{opacity:.75;margin-left:4px}
+.hint{color:var(--muted);font-size:12px}
+main{flex:1;overflow:auto;padding:0 20px 20px;min-height:0}
+.card{background:var(--panel);border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;box-shadow:var(--shadow);overflow:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--panel2);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+td.num input{width:100%;max-width:120px;text-align:right}
+td.name{white-space:normal;min-width:180px}
+td.dim{color:var(--muted)}
+td.ed input,td.ed select{background:var(--edit);border-color:var(--warn)}
+tr.look td.sells{color:var(--muted)}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;background:var(--chip);color:var(--muted);margin-left:6px}
+.warnicon{color:var(--warn);font-weight:700;cursor:help}
+.addbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.addbar input{width:110px} .addbar .nm{min-width:160px;color:var(--muted)}
+tr.added td:first-child{border-left:3px solid var(--ok)}
+.tag.new{background:var(--ok);color:#fff}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.modal{position:fixed;inset:0;background:rgba(10,15,25,.55);display:none;align-items:center;justify-content:center;z-index:20}
+.modal.on{display:flex}
+.modal .box{background:var(--panel);border-radius:14px;box-shadow:var(--shadow);width:min(860px,94vw);max-height:86vh;display:flex;flex-direction:column}
+.modal .box h2{margin:0;padding:14px 18px;font-size:16px;border-bottom:1px solid var(--line)}
+.modal .body{padding:12px 18px;overflow:auto;flex:1}
+.modal .foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+.err{color:var(--bad);margin:2px 0}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;padding:9px 16px;border-radius:10px;box-shadow:var(--shadow);display:none;z-index:30;max-width:80vw}
+.toast.ok{background:var(--ok)}
+
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 20px}
+.filters input[type=search]{width:200px} .filters input.n{width:70px}
+.split{display:flex;gap:14px;padding:0 20px 20px;flex:1;min-height:0}
+.split .list{flex:1.4;min-width:0;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.split .detail{flex:1;min-width:380px;max-width:560px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px 16px}
+tr.row{cursor:pointer} tr.row:hover td{background:var(--panel2)} tr.row.sel td{background:var(--chip)}
+tr.row.edited td:first-child{border-left:3px solid var(--warn)}
+.pager{display:flex;gap:10px;align-items:center;padding:8px 12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 12px;margin:10px 0}
+.grid label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:2px}
+.grid input,.grid select{width:100%}
+.grid label.ed input,.grid label.ed select{background:var(--edit);border-color:var(--warn)}
+.grid .orig{font-size:11px;color:var(--muted)}
+.detail h2{margin:0 0 2px;font-size:17px} .detail h3{margin:14px 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+.ro{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;font-size:13px} .ro span:nth-child(odd){color:var(--muted)}
+.mini th,.mini td{padding:4px 8px;font-size:13px}
+.tag.mvp{background:var(--bad);color:#fff} .tag.boss{background:var(--warn);color:#fff}
+</style>
+</head>
+<body>
+<header>
+  <h1>RO3 Plus Config Editor</h1>
+  <nav class="top"><a href="/">Skills</a><a href="/items">Items</a><a href="/shops">Shops</a><a href="/texts">Descriptions</a><a href="/mobs" class="on">Mobs</a></nav>
+  <span class="path" id="home"></span>
+  <span class="pill" id="pill">...</span>
+  <span class="spacer"></span>
+  <button class="primary" id="btnApply" disabled>Apply to game</button>
+  <details class="more"><summary>More</summary><div class="menu">
+    <button id="btnRestore">Put the untouched originals back</button>
+    <button id="btnDiscard">Discard all my edits</button>
+    <button id="btnRebase">Use current files as new original</button>
+  </div></details>
+</header>
+<div id="banner"></div>
+<div class="filters">
+  <input type="search" id="q" placeholder="Name or id">
+  Level <input class="n" id="lo" type="number" min="0" placeholder="from"> <input class="n" id="hi" type="number" min="0" placeholder="to">
+  <select id="cls"><option value="all">All monsters</option><option value="normal">Normal</option><option value="boss">Boss type</option><option value="mvp">MVP list</option></select>
+  <select id="race"></select><select id="size"></select><select id="element"></select>
+  <select id="sort"><option value="level">Sort: level</option><option value="name">Sort: name</option><option value="hp">Sort: HP</option><option value="exp">Sort: Base EXP</option><option value="id">Sort: id</option></select>
+  <label><input type="checkbox" id="desc"> descending</label> <label><input type="checkbox" id="unnamed"> show unnamed rows</label>
+  <span class="hint" id="count"></span>
+</div>
+<div class="split">
+  <div class="list"><table><thead><tr><th>Id</th><th>Name</th><th>Lv</th><th>Class</th><th>Race</th><th>Size</th><th>Element</th><th>HP</th><th>Atk</th><th>Base EXP</th></tr></thead><tbody id="rows"></tbody></table>
+    <div class="pager"><button id="prev">Prev</button><span id="pageInfo"></span><button id="next">Next</button></div></div>
+  <div class="detail" id="detail"><div class="empty">Pick a monster on the left.</div></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let META = null, page = 1, total = 0, LIMIT = 100, cur = null, LAST = null;
+const STAT_KEYS = ["hp","sp","atk","matk","pdef","mdef","hit","flee","crit"];
+const STAT_LABEL = {hp:"HP",sp:"SP",atk:"Atk",matk:"Matk",pdef:"Pdef",mdef:"Mdef",hit:"Hit",flee:"Flee",crit:"Crit"};
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function toast(msg, ok){ const t=$("toast"); t.textContent=msg; t.className="toast"+(ok?" ok":""); t.style.display="block"; clearTimeout(toast.h); toast.h=setTimeout(()=>t.style.display="none", ok?9000:7000); }
+async function api(path, body){
+  const r = await fetch(path, body===undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  const t = await r.text(); let j; try{ j=JSON.parse(t);}catch(e){ j=null; }
+  if(!r.ok) throw new Error((j&&j.error)||t||("HTTP "+r.status));
+  return j ?? t;
+}
+const nm = (map, id) => map[id] ?? "#"+id;
+function fillSelect(el, label, map){ el.innerHTML = '<option value="-1">'+label+'</option>' + Object.entries(map).map(([k,v])=>'<option value="'+k+'">'+esc(v)+'</option>').join(""); }
+function renderMeta(){
+  const m = META; $("home").textContent = m.home;
+  const p = $("pill");
+  if(m.fileStatus==="external"){ p.textContent="files changed outside"; p.className="pill warn"; }
+  else if(m.changedRows===0 && m.fileStatus==="pristine"){ p.textContent="original"; p.className="pill ok"; }
+  else if(m.inSync){ p.textContent="applied"; p.className="pill ok"; }
+  else { p.textContent=m.changedRows+" monster"+(m.changedRows===1?"":"s")+" edited, not applied"; p.className="pill warn"; }
+  $("btnApply").disabled = m.fileStatus==="external" || m.inSync || (m.changedRows===0 && m.fileStatus==="pristine");
+  let b = "";
+  if(m.fileStatus==="external") b = '<div class="banner bad"><span class="grow">NPCConfig, AttriMonsterConfig or AIConfig changed outside this tool. Use More &gt; Use current files as new original before applying.</span></div>';
+  else if(m.serverRunning) b = '<div class="banner warn"><span class="grow">The server is running. It reads these tables at start-up: apply, then restart it.</span></div>';
+  $("banner").innerHTML = b;
+}
+function query(){
+  const p = new URLSearchParams({q:$("q").value, lo:$("lo").value||0, hi:$("hi").value||0, cls:$("cls").value, race:$("race").value, size:$("size").value,
+    element:$("element").value, sort:$("sort").value, desc:$("desc").checked?1:0, unnamed:$("unnamed").checked?1:0, page, limit:LIMIT});
+  return p.toString();
+}
+async function load(){
+  const d = await api("/api/mobs/search?"+query()); total = d.total;
+  $("count").textContent = total+" monsters";
+  const pages = Math.max(1, Math.ceil(total/LIMIT)); if(page>pages){ page=pages; return load(); }
+  $("pageInfo").textContent = "Page "+page+" of "+pages; $("prev").disabled = page<=1; $("next").disabled = page>=pages;
+  $("rows").innerHTML = d.mobs.map(r => '<tr class="row'+(r.edited.length?" edited":"")+(cur===r.id?" sel":"")+'" data-id="'+r.id+'"><td>'+r.id+'</td><td>'+esc(r.name||"(no name)")+'</td><td>'+r.level+'</td><td>'
+    +(r.class==="normal"?"":'<span class="tag '+r.class+'">'+r.class.toUpperCase()+'</span>')+'</td><td>'+esc(nm(META.races,r.race))+'</td><td>'+esc(nm(META.sizes,r.size))+'</td><td>'+esc(nm(META.elements,r.element))+'</td><td>'+(r.hp||0).toLocaleString()+'</td><td>'+(r.atk||0).toLocaleString()+'</td><td>'+(r.exp||0).toLocaleString()+'</td></tr>').join("")
+    || '<tr><td colspan="10" class="empty">No monsters match.</td></tr>';
+}
+async function open(id){
+  cur = id; const d = await api("/api/mobs/get?id="+id); META = d.meta; renderMeta(); showDetail(d);
+  document.querySelectorAll("tr.row").forEach(tr => tr.classList.toggle("sel", +tr.dataset.id===id));
+}
+function showDetail(d){
+  LAST = d; const m = d.mob, o = d.original, ed = new Set(m.edited);
+  const num = (k,label,min,max,step) => '<label class="'+(ed.has(k)?"ed":"")+'">'+label+'<input type="number" data-k="'+k+'" value="'+m[k]+'" min="'+min+'" max="'+max+'" step="'+(step||1)+'"><span class="orig">original '+o[k]+'</span></label>';
+  const sel = (k,label,map) => '<label class="'+(ed.has(k)?"ed":"")+'">'+label+'<select data-k="'+k+'">'+Object.entries(map).map(([v,t])=>'<option value="'+v+'"'+(+v===m[k]?" selected":"")+'>'+esc(t)+'</option>').join("")+'</select><span class="orig">original '+esc(nm(map,o[k]))+'</span></label>';
+  const L = META.limits;
+  let h = '<h2>'+esc(m.name||"(no name)")+' <span class="hint">#'+m.id+' &middot; level '+m.level+'</span></h2>'
+    + '<div class="hint">'+(m.mvp?'<span class="tag mvp">MVP LIST</span> ':'')+(m.class==="boss"?'<span class="tag boss">BOSS TYPE</span> ':'')+'sub type '+m.subType+' &middot; stats row '+(m.sharedAttrRow||"by level")+' (shared, never edited: this monster gets its own row on Apply)</div>'
+    + '<h3>Stats</h3><div class="grid">'+STAT_KEYS.map(k=>num(k,STAT_LABEL[k],L[k][0],L[k][1])).join("")+'</div>'
+    + '<h3>Experience per kill</h3><div class="grid">'+num("exp","Base EXP",L.exp[0],L.exp[1])
+    + '<label>Job EXP (linked)<input type="number" id="jobExp" value="'+m.jobExp+'" min="0"><span class="orig">original '+o.jobExp+'</span></label></div>'
+    + '<div class="hint">Job EXP is always '+(META.jobPct/100)+'% of the Base EXP (a server-wide rule), so changing either one changes the Base EXP. These are the numbers before the killer\'s level-gap correction and any team or field-rate bonus.'
+    + (m.expSources? '' : ' This monster gives no Base EXP today: a number above 0 adds it.')+'</div>'
+    + '<h3>Type and movement</h3><div class="grid">'+sel("element","Element",META.elements)+sel("race","Race",META.races)+sel("size","Size",META.sizes)
+    + num("speed","Walk speed",L.speed[0],L.speed[1])+num("chase","Chase range (m)",L.chase[0],L.chase[1],0.5)+'</div>'
+    + (m.chaseLocked?'<div class="hint">Chase range is locked: this monster uses the aggressive AI (20000004).</div>':'')
+    + '<div style="display:flex;gap:8px;margin:8px 0"><button class="primary" id="save">Save</button><button id="reset">Back to original</button></div>'
+    + '<h3>Read-only (from its skills and AI)</h3><div class="ro"><span>Attack range</span><span>'+m.attackRange+' m'+(m.ownAttack?"":" (server default, no normal attack listed)")+'</span>'
+    + '<span>Attack interval (ASPD)</span><span>'+m.swingMs+' ms per swing</span><span>Skill range</span><span>'+(m.skillRange==null?"no other skills":m.skillRange+" m ("+m.skills+" skill"+(m.skills===1?"":"s")+")")+'</span><span>View range</span><span>'+m.view+' m</span><span>AI</span><span>'+m.ai+'</span></div>'
+    + '<h3>Drops (a kill rolls these; read-only for now)</h3>';
+  const dr = d.drops.items;
+  h += dr.length ? '<table class="mini"><thead><tr><th>Item</th><th>Chance</th><th>Qty</th><th>Notes</th></tr></thead><tbody>'
+    + dr.map(x => '<tr><td>'+esc(x.name||"#"+x.item)+' <span class="hint">#'+x.item+'</span></td><td>'+x.chance+'%</td><td>'+(x.min===x.max?x.min:x.min+"-"+x.max)+'</td><td class="hint">'
+      +(x.quest?"quest "+x.quest+". ":"")+(x.maps.length?"maps "+x.maps.join(",")+". ":"")+(x.levels[0]||x.levels[1]?"player level "+x.levels[0]+"-"+(x.levels[1]||"any")+". ":"")+'</td></tr>').join("")
+    + '</tbody></table><div class="hint">Chance per kill, from pool chance &times; row weight (approximate when a pool picks several). Quest rows drop only with that quest.</div>'
+    : '<div class="hint">No item drops.</div>';
+  if(d.drops.exp.length) h += '<div class="hint">Base EXP rows: '+d.drops.exp.map(x=>x.min===x.max?x.min:x.min+"-"+x.max).join(", ")+'</div>';
+  $("detail").innerHTML = h;
+  $("save").onclick = save; $("reset").onclick = resetMob;
+  const base = document.querySelector('#detail [data-k="exp"]'), job = $("jobExp"), pct = META.jobPct;
+  base.addEventListener("input", () => { job.value = Math.floor(Number(base.value||0)*pct/10000); });
+  job.addEventListener("input", () => { base.value = pct>0 ? Math.ceil(Number(job.value||0)*10000/pct) : 0; job.value = Math.floor(Number(base.value)*pct/10000); });
+}
+async function save(){
+  const v = {};
+  document.querySelectorAll("#detail [data-k]").forEach(el => { const k = el.dataset.k; const n = Number(el.value); if(el.value==="" || Number.isNaN(n)) v[k]=null; else v[k]=n; });
+  try{ const d = await api("/api/mobs/set", {id:cur, values:v}); META = d.meta; renderMeta(); showDetail(d); await load(); toast("Saved. Press Apply to game to write it.", true); }
+  catch(e){ toast(e.message); }
+}
+async function resetMob(){ try{ const d = await api("/api/mobs/reset", {id:cur}); META = d.meta; renderMeta(); showDetail(d); await load(); toast("Back to the original.", true);}catch(e){toast(e.message);} }
+$("btnApply").onclick = async ()=>{
+  $("btnApply").disabled = true;
+  try{ const r = await api("/api/mobs/apply", {}); META = r.meta; toast("Applied "+r.mobs+" monster"+(r.mobs===1?"":"s")+". Restart the server to use them.", true); }catch(e){ toast(e.message); }
+  renderMeta();
+};
+$("btnRebase").onclick = async ()=>{ if(!confirm("Use the current NPCConfig, AttriMonsterConfig and AIConfig as the new untouched originals? Your edits are kept and laid on top.")) return;
+  try{ META = await api("/api/mobs/rebaseline", {}); renderMeta(); await load(); toast("Current files are now the originals.", true);}catch(e){toast(e.message);} };
+$("btnRestore").onclick = async ()=>{ if(!confirm("Put the three untouched original tables back in the game folder? (A backup is made first. Your edits stay saved.)")) return;
+  try{ META = await api("/api/mobs/restore-original", {}); renderMeta(); toast("Originals restored. Restart the server.", true);}catch(e){toast(e.message);} };
+$("btnDiscard").onclick = async ()=>{ if(!confirm("Throw away ALL your saved monster edits?")) return;
+  try{ META = await api("/api/mobs/reset-all", {}); renderMeta(); await load(); if(cur) open(cur); toast("Edits discarded.", true);}catch(e){toast(e.message);} };
+$("rows").onclick = e => { const tr = e.target.closest("tr.row"); if(tr) open(+tr.dataset.id); };
+$("prev").onclick = () => { page--; load(); }; $("next").onclick = () => { page++; load(); };
+let timer = null;
+["q","lo","hi"].forEach(i => $(i).addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(()=>{ page=1; load().catch(e=>toast(e.message)); }, 250); }));
+["cls","race","size","element","sort","desc","unnamed"].forEach(i => $(i).addEventListener("change", () => { page=1; load().catch(e=>toast(e.message)); }));
+(async () => {
+  try{ META = (await api("/api/mobs/meta")); fillSelect($("race"),"All races",META.races); fillSelect($("size"),"All sizes",META.sizes); fillSelect($("element"),"All elements",META.elements); renderMeta(); await load(); }
+  catch(e){ toast(e.message); }
+})();
+</script>
+</body>
+</html>

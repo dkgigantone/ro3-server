@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RO3 Plus Config Editor - a small local web app for editing skill timing, items and shops in RO3Emu.
+"""RO3 Plus Config Editor - a small local web app for editing skill timing, items, shops, descriptions and monsters in RO3Emu.
 
 Run:  py -3 app.py            (opens http://127.0.0.1:8765)
       py -3 app.py --home "C:\\path\\to\\RO3 OFFICIAL SERVER FILES V2" --port 8765
@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 
 from common import APP_DIR, LOCK, STATE_DIR, atomic_write, client_dir, compact, read_json, server_running, set_client_dir, sha256
 from items import ItemsEditor
+from mobs import MobsEditor
 from shops import ShopsEditor
 from texts import TextsEditor
 
@@ -348,6 +349,7 @@ class Handler(BaseHTTPRequestHandler):
     items: ItemsEditor = None
     shops: ShopsEditor = None
     texts: TextsEditor = None
+    mobs: MobsEditor = None
 
     def log_message(self, *a):
         pass
@@ -392,6 +394,20 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, (STATIC / "shops.html").read_bytes(), "text/html")
             if path == "/texts":
                 return self.send(200, (STATIC / "texts.html").read_bytes(), "text/html")
+            if path == "/mobs":
+                return self.send(200, (STATIC / "mobs.html").read_bytes(), "text/html")
+            if path == "/api/mobs/meta":
+                return self.ok(self.mobs.meta())
+            if path == "/api/mobs/search":
+                from urllib.parse import parse_qs
+                q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+                return self.ok(self.mobs.search(q.get("q", ""), int(q.get("lo") or 0), int(q.get("hi") or 0), q.get("cls", "all"),
+                                                int(q.get("race", -1)), int(q.get("size", -1)), int(q.get("element", -1)),
+                                                q.get("sort", "level"), q.get("desc") == "1", int(q.get("page") or 1), int(q.get("limit") or 100),
+                                                q.get("unnamed") == "1"))
+            if path == "/api/mobs/get":
+                from urllib.parse import parse_qs
+                return self.ok(self.mobs.get(int((parse_qs(urlparse(self.path).query).get("id") or ["0"])[0])))
             if path == "/api/texts/search":
                 from urllib.parse import parse_qs
                 return self.ok(self.texts.search((parse_qs(urlparse(self.path).query).get("q") or [""])[0]))
@@ -492,6 +508,19 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/items/rebaseline":
                 self.items.rebaseline()
                 return self.ok(self.items.meta())
+            if path == "/api/mobs/set":
+                return self.ok(self.mobs.set_fields(body["id"], body["values"]))
+            if path == "/api/mobs/reset":
+                return self.ok(self.mobs.reset_mob(body["id"]))
+            if path == "/api/mobs/reset-all":
+                return self.ok(self.mobs.reset_all())
+            if path == "/api/mobs/apply":
+                return self.ok(self.mobs.apply())
+            if path == "/api/mobs/restore-original":
+                return self.ok(self.mobs.restore_original())
+            if path == "/api/mobs/rebaseline":
+                self.mobs.rebaseline()
+                return self.ok(self.mobs.meta())
             if path == "/api/set-home":
                 home = Path(body["home"])
                 new = Editor(home)
@@ -500,6 +529,7 @@ class Handler(BaseHTTPRequestHandler):
                 Handler.items = ItemsEditor(home)
                 Handler.shops = ShopsEditor(home)
                 Handler.texts = TextsEditor(home)
+                Handler.mobs = MobsEditor(home)
                 STATE_DIR.mkdir(parents=True, exist_ok=True)
                 atomic_write(SETTINGS, json.dumps({"home": str(home)}))
                 return self.ok(new.meta())
@@ -532,6 +562,7 @@ def main():
     Handler.items = ItemsEditor(Handler.editor.home)
     Handler.shops = ShopsEditor(Handler.editor.home)
     Handler.texts = TextsEditor(Handler.editor.home)
+    Handler.mobs = MobsEditor(Handler.editor.home)
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     url = f"http://127.0.0.1:{args.port}/"
     print(f"RO3 Plus Config Editor\n  game folder: {Handler.editor.home}\n  open: {url}\n  (close this window to stop)")
