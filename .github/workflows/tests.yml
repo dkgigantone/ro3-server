@@ -3,7 +3,12 @@ name: tests
 on:
   push:
     branches: [main]
+    # tools/config-editor is Python and HTML: no test looks at it (docs/ is not skipped, tests read it).
+    paths-ignore:
+      - 'tools/config-editor/**'
   pull_request:
+    paths-ignore:
+      - 'tools/config-editor/**'
   workflow_dispatch:
 
 permissions:
@@ -19,9 +24,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Players run the server on Windows, hosts mostly on Linux. A pull request runs Linux only (the Windows runner is
-        # the slow one); main runs both after the merge, so a Windows-only failure shows there.
-        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["ubuntu-latest", "windows-latest"]') }}
+        # Players run the server on Windows, hosts mostly on Linux. A pull request and a push to main run Linux only
+        # (Windows minutes cost more); start the workflow by hand from the Actions page (Run workflow) to run Windows
+        # too, before a release or after a change that may behave differently there.
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-latest", "windows-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:

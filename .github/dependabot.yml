@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       actions:
         patterns: ['*']
@@ -12,7 +12,7 @@ updates:
   - package-ecosystem: nuget
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 5
     groups:
       tests:
@@ -26,4 +26,4 @@ updates:
   - package-ecosystem: dotnet-sdk
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
