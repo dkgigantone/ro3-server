@@ -3,7 +3,13 @@ name: Client-independent .NET checks
 on:
   push:
     branches: [main]
+    # tools/config-editor is Python and HTML: none of these checks look at it (docs/ is not skipped, tests read it).
+    paths-ignore:
+      - 'tools/config-editor/**'
   pull_request:
+    paths-ignore:
+      - 'tools/config-editor/**'
+  # Start it by hand from the Actions page (Run workflow) to include the Windows build below.
   workflow_dispatch:
 
 permissions:
@@ -67,8 +73,11 @@ jobs:
 
   # The server, the setup tool and the patcher are built and tested on Linux and Windows by tests.yml; this job
   # builds what no test project references.
+  # Windows minutes cost more than Linux ones: this job only runs when started by hand (before a release, or after a
+  # change to the launcher or the export tools).
   build:
     name: Export tools and launcher build
+    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
