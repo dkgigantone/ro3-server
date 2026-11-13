@@ -13,7 +13,7 @@ How a monster's numbers are made (CONFIRMED in MonsterService.TemplateAttributes
   * Chase range  AIConfig._iUnFightParam[0] (the leash, cm) when the AI has it, else _iChaseDistance.
   * Attack range, swing time and skill range come from the monster's skills (SkillConfig) and are shown read-only.
   * Drops        NPCConfig._iDrop and _iNormalDrop -> MultiverseGroupConfig -> NPCDropConfig / NpcNormalDropConfig ->
-                 DropPoolConfig [group, chance per million, rolls, picks] -> DropGroupConfig rows (weights). Read-only here.
+                 DropPoolConfig [group, chance per million, rolls, picks] -> DropGroupConfig rows (weights). Editable (see below).
 
 One AttriMonsterConfig row is shared by up to 240 monsters, so an edit never changes the shared row. The edited monster
 gets its own row (id 800000000 + npc id) holding the final numbers, and its _kAttriScale is emptied so nothing is
@@ -27,6 +27,14 @@ untouched originals each time, so "discard" and "restore original" are exact.
                  (MultiverseGroupConfig 900000000+, drop row 1000000000+, pool 1100000000+, group 1300000000+, all from
                  npc id), every exp row scaled so the first one equals the number. A monster with no Base EXP gets a new
                  NpcNormalDropConfig entry with one exp row. Bonus Time (environment 1) rows are left as they are.
+  * Item drops   Edited as a whole list per monster (overrides key "drops"). Each entry: item, chance per roll (percent),
+                 rolls, quantity min/max, player level from/to, DropAttenuationConfig plan, plus the quest and map limits
+                 it already had. On Apply the monster's own copy of its drop pools gets its item slots emptied (Base EXP
+                 slots stay) and the list is written as new NpcNormalDropConfig rows (128 entries per row, one pool slot and one
+                 single-row group per entry, so every entry rolls on its own). Ids come from running counters (MV 1500000000+,
+                 row 1600000000+, pool 1700000000+, group 1800000000+) in npc id order. Shared rows and Bonus Time (environment 1)
+                 are not touched. The level penalty is DropAttenuationConfig (RewardService / DropAttenuation.cs): the picked row's
+                 quantity is scaled by the ratio for (player level - monster level).
 Standard library only.
 """
 import copy
@@ -41,9 +49,13 @@ from common import APP_DIR, LOCK, STATE_DIR, atomic_write, compact, read_json, s
 OVERRIDES = APP_DIR / "overrides" / "mobs.json"
 TABLES = ("NPCConfig", "AttriMonsterConfig", "AIConfig", "MultiverseGroupConfig", "NPCDropConfig", "NpcNormalDropConfig",
           "DropPoolConfig", "DropGroupConfig")
-READ_TABLES = ("ItemConfig", "Localization_en", "MVPConfig", "SkillConfig", "PublicParamConfig")
+READ_TABLES = ("ItemConfig", "Localization_en", "MVPConfig", "SkillConfig", "PublicParamConfig", "DropAttenuationConfig")
 BASE_EXP_ITEM = 100
 NEW_MV_BASE, NEW_ROW_BASE, NEW_POOL_BASE, NEW_GROUP_BASE = 900_000_000, 1_000_000_000, 1_100_000_000, 1_300_000_000
+# item drop edits use running counters (a monster can need hundreds of groups), handed out in npc id order on every build
+DROP_MV_BASE, DROP_ROW_BASE, DROP_POOL_BASE, DROP_GROUP_BASE = 1_500_000_000, 1_600_000_000, 1_700_000_000, 1_800_000_000
+DROP_ROW_CAPACITY = 128          # one NpcNormalDropConfig row: 8 pools x 16 slots
+DROP_MAX_ENTRIES = 1000
 EXP_TEMPLATE_GROUP = "3305"      # a pure Base EXP group; its row is the template of a new exp row
 MAX_BACKUPS = 5
 NEW_ATTR_BASE = 800_000_000
@@ -79,6 +91,12 @@ def _num(v, default=0):
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else default
 
 
+def _first_num(v):
+    if isinstance(v, list):
+        return v[0] if v else 0
+    return v
+
+
 def _pairs(value):
     """[[a, b], ...] from a list of pairs (an empty {} means none)."""
     out = []
@@ -101,6 +119,7 @@ class MobsEditor:
         self.originals = self.state_dir / "mobs_originals"
         self.backups = self.state_dir / "mobs_backups"
         self.state_file = self.state_dir / "mobs_state.json"
+        self._item_names = None  # (id, name) list for the Add drop search, built on first use
         self.ref = None          # read-only lookup tables, loaded once
         self.orig = None         # original rows of the three edited tables
 
@@ -202,6 +221,13 @@ class MobsEditor:
             r["Loc"] = r.pop("Localization_en")
             mvp = r.pop("MVPConfig")
             r["Mvp"] = {int(x.get("_iNPCID", 0)) for x in (mvp.values() if isinstance(mvp, dict) else mvp) if isinstance(x, dict)}
+            plans = {}
+            raw = r.pop("DropAttenuationConfig") or []
+            for x in raw.values() if isinstance(raw, dict) else raw:
+                if isinstance(x, dict):
+                    a, b = _num(_first_num(x.get("_kLvDiffLowerlimit"))), _num(_first_num(x.get("_kLvDiffUpLimit")))
+                    plans.setdefault(int(_num(x.get("_iPlanID"))), []).append([int(min(a, b)), int(max(a, b)), int(_num(x.get("_iAttenuationRatio")))])
+            r["Atten"] = {k: sorted(v) for k, v in plans.items()}
             params = r.pop("PublicParamConfig")
             r["JobPct"] = int(_num(params.get("BaseToJobConversionPercent"), 0)) if isinstance(params, dict) else 0
             self.ref = r
@@ -353,26 +379,28 @@ class MobsEditor:
         return out
 
     # ------------------------------------------------------------ drops (read-only)
-    def drops(self, nid):
-        """The drop rows a kill rolls, with the chance per kill that the item drops (approximate for picks > 1)."""
+    def original_drops(self, nid):
+        """The item drops a kill rolls from the untouched chain, as editable entries (per roll chance in percent), and
+        the Base EXP rows. Each pool slot is [group, chance per million, rolls, picks]; a row's chance per roll is the
+        pool chance times its weight share (approximate when a slot picks several rows)."""
         self._load()
         npc = self.orig["NPCConfig"][str(nid)]
         r = self.ref
-        rows = []   # (source label, row, maps)
+        rows = []   # (row, maps)
         mid = r["MV"].get(str(int(_num(npc.get("_iDrop")))))
         did = int(_num(mid.get("_iValue_default"))) if mid else 0
         nd = r["NDrop"].get(str(did)) if did else None
         if isinstance(nd, dict) and isinstance(nd.get("0"), dict):
-            rows.append(("drop", nd["0"], []))
+            rows.append((nd["0"], []))
         normals = npc.get("_iNormalDrop")
         for n in (normals if isinstance(normals, list) else []):
             mv = r["MV"].get(str(int(_num(n))))
             row = r["NNormal"].get(str(int(_num(mv.get("_iValue_default"))))) if mv else None
             if row:
                 maps = row.get("_iMapId")
-                rows.append(("normal", row, [int(m) for m in maps] if isinstance(maps, list) else []))
+                rows.append((row, [int(m) for m in maps] if isinstance(maps, list) else []))
         items, exp = [], []
-        for source, row, maps in rows:
+        for row, maps in rows:
             for k, pid in row.items():
                 if not k.startswith("_iDropPool") or not isinstance(pid, int) or not pid:
                     continue
@@ -386,20 +414,39 @@ class MobsEditor:
                     chance = _num(g[1]) / 1_000_000
                     rolls = max(1, min(1000, int(_num(g[2], 1)))) if len(g) >= 3 else 1
                     picks = max(1, int(_num(g[3], 1))) if len(g) >= 4 else 1
-                    cands = [x for x in (r["Group"].get(str(int(_num(g[0])))) or []) if isinstance(x, dict) and _num(x.get("_iWeights")) > 0
+                    gid = int(_num(g[0]))
+                    grows = r["Group"].get(str(gid)) or []
+                    cands = [(i, x) for i, x in enumerate(grows) if isinstance(x, dict) and _num(x.get("_iWeights")) > 0
                              and _num(x.get("_iActivityid")) == 0]
-                    total = sum(_num(x["_iWeights"]) for x in cands)
-                    for x in cands:
+                    total = sum(_num(x["_iWeights"]) for _i, x in cands)
+                    for i, x in cands:
                         per_roll = chance * min(1.0, picks * _num(x["_iWeights"]) / total) if total else 0
-                        per_kill = 1 - (1 - per_roll) ** rolls
                         iid = int(_num(x.get("_kDropItem")))
-                        entry = {"item": iid, "name": self.item_name(iid) or ("Base EXP" if iid == 100 else ""), "chance": round(per_kill * 100, 4),
+                        if round(per_roll * 100, 4) < 0.0001:
+                            continue            # a row that can never drop (chance 0)
+                        entry = {"item": iid, "name": self.item_name(iid) or ("Base EXP" if iid == 100 else ""),
+                                 "chance": round(per_roll * 100, 4), "rolls": rolls,
+                                 "perKill": round((1 - (1 - per_roll) ** rolls) * 100, 4),
                                  "min": int(_num(x.get("_iMinNumber"))), "max": int(_num(x.get("_iMaxNumber"))),
-                                 "quest": int(_num(x.get("_iQuestLimit"))), "maps": maps, "pool": pid, "group": int(_num(g[0])),
-                                 "levels": [int(_num(x.get("_iMinLevelLimit"))), int(_num(x.get("_iMaxLevelLimit")))]}
-                        (exp if iid == 100 else items).append(entry)
-        items.sort(key=lambda d: -d["chance"])
-        return {"items": items, "exp": exp, "dropId": int(_num(npc.get("_iDrop"))), "normalDrop": npc.get("_iNormalDrop") or []}
+                                 "minLevel": int(_num(x.get("_iMinLevelLimit"))), "maxLevel": int(_num(x.get("_iMaxLevelLimit"))),
+                                 "plan": int(_num(x.get("_iAttenuationPlanID"))),
+                                 "quest": int(_num(x.get("_iQuestLimit"))), "maps": maps,
+                                 "src": {"group": gid, "i": i}}
+                        (exp if iid in (100, 101) else items).append(entry)
+        items.sort(key=lambda d: (-d["perKill"], d["item"]))
+        return items, exp, int(_num(npc.get("_iDrop"))), npc.get("_iNormalDrop") or []
+
+    def drops(self, nid, ov=None):
+        items, exp, drop_id, normal = self.original_drops(nid)
+        stored = (ov or self.load_overrides())["Mobs"].get(str(nid), {}).get("drops")
+        shown = [self._shown(e) for e in stored] if stored is not None else items
+        return {"items": shown, "original": items, "exp": exp, "dropId": drop_id, "normalDrop": normal, "edited": stored is not None}
+
+    def _shown(self, e):
+        out = dict(e)
+        out["name"] = self.item_name(e["item"])
+        out["perKill"] = round((1 - (1 - e["chance"] / 100) ** e["rolls"]) * 100, 4)
+        return out
 
     # ------------------------------------------------------------ list
     def search(self, q="", lo=0, hi=0, cls="all", race=-1, size=-1, element=-1, sort="level", desc=False, page=1, limit=100, unnamed=False):
@@ -447,7 +494,7 @@ class MobsEditor:
             if str(nid) not in self.orig["NPCConfig"] or str(nid) not in set(self.mob_ids()):
                 raise ValueError(f"NPCConfig {nid} is not a monster row.")
             ov = self.load_overrides()
-            return {"mob": self.effective(nid, ov), "drops": self.drops(nid), "original": self.effective(nid, {"Mobs": {}}),
+            return {"mob": self.effective(nid, ov), "drops": self.drops(nid, ov), "original": self.effective(nid, {"Mobs": {}}),
                     "meta": self.meta()}
 
     def meta(self):
@@ -458,7 +505,8 @@ class MobsEditor:
             return {"home": str(self.home), "fileStatus": status,
                     "inSync": status == "applied" and st.get("applied_overrides") == self.ov_hash(ov),
                     "serverRunning": server_running(), "changedRows": self.count(ov), "overridesFile": str(OVERRIDES),
-                    "elements": ELEMENTS, "races": RACES, "sizes": SIZES, "limits": FIELD_LIMITS, "jobPct": self.ref["JobPct"] if self.ref else 0}
+                    "elements": ELEMENTS, "races": RACES, "sizes": SIZES, "limits": FIELD_LIMITS, "jobPct": self.ref["JobPct"] if self.ref else 0,
+                    "plans": self.ref["Atten"] if self.ref else {}, "dropLimit": DROP_MAX_ENTRIES}
 
     # ------------------------------------------------------------ editing
     def set_fields(self, nid, values):
@@ -497,6 +545,96 @@ class MobsEditor:
             self.save_overrides(ov)
             return self.get(nid)
 
+    def item_search(self, q, limit=15):
+        """Items by id or part of the English name, for the Add drop box."""
+        with LOCK:
+            self._load()
+            q = (q or "").strip().lower()
+            if not q:
+                return {"items": []}
+            if self._item_names is None:
+                self._item_names = [(int(k), self.text(v.get("_iName")) if isinstance(v, dict) else "") for k, v in self.ref["Item"].items()]
+                self._item_names.sort()
+            out = []
+            if q.isdigit() and q in self.ref["Item"]:
+                out.append({"id": int(q), "name": self.item_name(q)})
+            for iid, name in self._item_names:
+                if len(out) >= limit:
+                    break
+                if name and q in name.lower() and iid not in (100, 101) and not (q.isdigit() and iid == int(q)):
+                    out.append({"id": iid, "name": name})
+            return {"items": out}
+
+    def set_drops(self, nid, entries):
+        """entries: the monster's complete item drop list (None puts the original back). A list equal to the original
+        is not stored. Base EXP is edited with the exp field, never here."""
+        with LOCK:
+            self._load()
+            nid = str(int(nid))
+            if nid not in self.mob_ids():
+                raise ValueError(f"NPCConfig {nid} is not a monster row.")
+            ov = self.load_overrides()
+            edit = dict(ov["Mobs"].get(nid, {}))
+            if entries is None:
+                edit.pop("drops", None)
+            else:
+                if not isinstance(entries, list):
+                    raise ValueError("The drop list must be a list.")
+                if len(entries) > DROP_MAX_ENTRIES:
+                    raise ValueError(f"A monster can have at most {DROP_MAX_ENTRIES} item drops.")
+                clean = [self._clean_entry(e, i + 1) for i, e in enumerate(entries)]
+                original, *_rest = self.original_drops(nid)
+                if [self._comparable(e) for e in clean] == [self._comparable(e) for e in original]:
+                    edit.pop("drops", None)
+                else:
+                    edit["drops"] = clean
+            if edit:
+                ov["Mobs"][nid] = edit
+            else:
+                ov["Mobs"].pop(nid, None)
+            self.save_overrides(ov)
+            return self.get(nid)
+
+    @staticmethod
+    def _comparable(e):
+        return (e["item"], e["chance"], e["rolls"], e["min"], e["max"], e["minLevel"], e["maxLevel"], e["plan"])
+
+    def _clean_entry(self, e, n):
+        if not isinstance(e, dict):
+            raise ValueError(f"Drop {n}: bad row.")
+
+        def num(key, lo, hi, integer=True, default=None):
+            v = e.get(key, default)
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                raise ValueError(f"Drop {n}: {key} must be a number.")
+            if not lo <= v <= hi:
+                raise ValueError(f"Drop {n}: {key} must be between {lo} and {hi}.")
+            return int(v) if integer else round(float(v), 4)
+
+        item = num("item", 1, 2_000_000_000)
+        if item in (100, 101):
+            raise ValueError(f"Drop {n}: item {item} is EXP; use the Base EXP field.")
+        if str(item) not in self.ref["Item"]:
+            raise ValueError(f"Drop {n}: item {item} does not exist in ItemConfig.")
+        chance = num("chance", 0.0001, 100, integer=False)
+        out = {"item": item, "chance": chance, "rolls": num("rolls", 1, 1000, default=1),
+               "min": num("min", 0, 1_000_000_000), "max": num("max", 0, 1_000_000_000),
+               "minLevel": num("minLevel", 0, 999, default=0), "maxLevel": num("maxLevel", 0, 999, default=999)}
+        if out["max"] < out["min"]:
+            raise ValueError(f"Drop {n}: max quantity is below min quantity.")
+        if out["maxLevel"] and out["maxLevel"] < out["minLevel"]:
+            raise ValueError(f"Drop {n}: max player level is below min player level.")
+        plan = num("plan", 0, 1_000_000, default=0)
+        if plan and str(plan) not in {str(k) for k in self.ref["Atten"]} and plan not in self.ref["Atten"]:
+            raise ValueError(f"Drop {n}: penalty plan {plan} does not exist.")
+        out["plan"] = plan
+        out["quest"] = int(_num(e.get("quest")))
+        maps = e.get("maps")
+        out["maps"] = [int(m) for m in maps] if isinstance(maps, list) and all(isinstance(m, (int, float)) for m in maps) else []
+        src = e.get("src")
+        out["src"] = {"group": int(src["group"]), "i": int(src["i"])} if isinstance(src, dict) and "group" in src and "i" in src else None
+        return out
+
     def reset_mob(self, nid):
         with LOCK:
             ov = self.load_overrides()
@@ -523,7 +661,8 @@ class MobsEditor:
         tables = {t: read_json(self.original(t)) for t in TABLES}
         npcs, attrs, ais = (_index(tables[t]) for t in TABLES[:3])
         done = 0
-        for nid, e in ov["Mobs"].items():
+        ids = {"mv": DROP_MV_BASE, "row": DROP_ROW_BASE, "pool": DROP_POOL_BASE, "group": DROP_GROUP_BASE}
+        for nid, e in sorted(ov["Mobs"].items(), key=lambda kv: int(kv[0])):
             npc = npcs.get(nid)
             if npc is None or not e:
                 continue
@@ -544,6 +683,8 @@ class MobsEditor:
                 npc["_kAttriScale"] = {}
             if "exp" in e:
                 self._apply_exp(int(nid), npc, e["exp"], tables)
+            if "drops" in e:
+                self._apply_drops(int(nid), npc, e["drops"], tables, ids)
             for key, field in (("element", "_iElement"), ("race", "_iRace"), ("size", "_iSize"), ("speed", "_iSpeed")):
                 if key in e:
                     npc[field] = e[key]
@@ -650,6 +791,121 @@ class MobsEditor:
         mvt[str(mid)] = mv_row
         existing = npc.get("_iNormalDrop")
         npc["_iNormalDrop"] = (list(existing) if isinstance(existing, list) else []) + [mid]
+
+    def _apply_drops(self, nid, npc, entries, tables, ids):
+        """The monster's item drops become exactly `entries`. The item slots of its own pool copies are emptied (Base EXP
+        slots stay), then the list is written as new NpcNormalDropConfig rows: one pool slot and one single-row group per
+        entry, so each entry rolls on its own with its chance. Shared rows are never edited."""
+        mvt, ndt, nnt, pt, gt = (tables[t] for t in ("MultiverseGroupConfig", "NPCDropConfig", "NpcNormalDropConfig", "DropPoolConfig", "DropGroupConfig"))
+
+        def take(kind):
+            ids[kind] += 1
+            return ids[kind] - 1
+
+        def item_slots(pool):
+            out = []
+            for slot in range(1, 17):
+                g = pool.get(f"_iDropGroup_{slot}")
+                if isinstance(g, list) and len(g) >= 2:
+                    rows = gt.get(str(int(_num(g[0])))) or []
+                    if not (rows and all(isinstance(x, dict) and x.get("_kDropItem") in (100, 101) for x in rows)):
+                        out.append(slot)
+            return out
+
+        def clear(env_row):
+            """Copy every pool of this drop row that holds item slots and empty those slots in the copy."""
+            changed = False
+            for field, pid in list(env_row.items()):
+                if field.startswith("_iDropPool") and isinstance(pid, int) and pid and str(pid) in pt:
+                    slots = item_slots(pt[str(pid)])
+                    if slots:
+                        pool = copy.deepcopy(pt[str(pid)])
+                        new_pool = take("pool")
+                        pool["_iID"] = new_pool
+                        for slot in slots:
+                            pool[f"_iDropGroup_{slot}"] = {}
+                        pt[str(new_pool)] = pool
+                        env_row[field] = new_pool
+                        changed = True
+            return changed
+
+        # 1. the monster's own sources: copy MultiverseGroupConfig and the drop row when an item slot has to go
+        mv = mvt.get(str(int(_num(npc.get("_iDrop")))))
+        rid = int(_num(mv.get("_iValue_default"))) if mv else 0
+        if rid and isinstance(ndt.get(str(rid)), dict) and isinstance(ndt[str(rid)].get("0"), dict):
+            row = copy.deepcopy(ndt[str(rid)])
+            if clear(row["0"]):
+                new_mv, new_row = take("mv"), take("row")
+                for env in row.values():
+                    if isinstance(env, dict) and "_iID" in env:
+                        env["_iID"] = new_row
+                ndt[str(new_row)] = row
+                mv_row = copy.deepcopy(mv)
+                mv_row["_iID"], mv_row["_iValue_default"] = new_mv, new_row
+                mvt[str(new_mv)] = mv_row
+                npc["_iDrop"] = new_mv
+        normals = npc.get("_iNormalDrop")
+        normals = list(normals) if isinstance(normals, list) else []
+        for i, n in enumerate(normals):
+            mv = mvt.get(str(int(_num(n))))
+            rid = int(_num(mv.get("_iValue_default"))) if mv else 0
+            if rid and str(rid) in nnt:
+                row = copy.deepcopy(nnt[str(rid)])
+                if clear(row):
+                    new_mv, new_row = take("mv"), take("row")
+                    row["_iID"] = new_row
+                    nnt[str(new_row)] = row
+                    mv_row = copy.deepcopy(mv)
+                    mv_row["_iID"], mv_row["_iValue_default"] = new_mv, new_row
+                    mvt[str(new_mv)] = mv_row
+                    normals[i] = new_mv
+        # 2. the new list, grouped by the maps it is limited to, 128 entries per row
+        tpl_group, tpl_pool, tpl_mv = gt.get(EXP_TEMPLATE_GROUP), pt.get("240001"), mvt.get("240001")
+        tpl_row = nnt.get("100240001")
+        if entries and not (tpl_group and tpl_pool and tpl_mv and tpl_row):
+            raise ValueError("The template drop rows (group 3305, pool 240001, NpcNormalDropConfig 100240001) are missing.")
+        by_maps = {}
+        for e in entries:
+            by_maps.setdefault(tuple(e.get("maps") or []), []).append(e)
+        for maps, chunk_all in by_maps.items():
+            for start in range(0, len(chunk_all), DROP_ROW_CAPACITY):
+                chunk = chunk_all[start:start + DROP_ROW_CAPACITY]
+                new_mv, new_row = take("mv"), take("row")
+                nrow = copy.deepcopy(tpl_row)
+                for key in list(nrow):
+                    if key.startswith("_iDropPool") or key.startswith("_iDropType"):
+                        nrow.pop(key)
+                nrow["_iID"] = new_row
+                nrow["_iMapId"] = list(maps) if maps else {}
+                for pn, pstart in enumerate(range(0, len(chunk), 16), start=1):
+                    new_pool = take("pool")
+                    pool = copy.deepcopy(tpl_pool)
+                    for key in list(pool):
+                        if key.startswith("_iDropGroup_"):
+                            pool[key] = {}
+                    pool["_iID"] = new_pool
+                    for slot, e in enumerate(chunk[pstart:pstart + 16], start=1):
+                        gid = take("group")
+                        src = e.get("src")
+                        base = (self.orig["DropGroupConfig"].get(str(src["group"])) or []) if src else []
+                        grow = copy.deepcopy(base[src["i"]] if src and 0 <= src["i"] < len(base) else tpl_group[0])
+                        grow.update({"_iID": gid, "_ilineID": gid, "_iSerial": 1, "_iWeights": 1, "_kDropItem": e["item"],
+                                     "_iMinNumber": e["min"], "_iMaxNumber": e["max"], "_iMinLevelLimit": e["minLevel"],
+                                     "_iMaxLevelLimit": e["maxLevel"], "_iAttenuationPlanID": e["plan"], "_iQuestLimit": e.get("quest", 0),
+                                     "_iActivityid": 0})
+                        gt[str(gid)] = [grow]
+                        pool[f"_iDropGroup_{slot}"] = [gid, int(round(e["chance"] * 10000)), e["rolls"], 1]
+                    pt[str(new_pool)] = pool
+                    nrow[f"_iDropPool{pn}"] = new_pool
+                    nrow[f"_iDropType{pn}"] = 1
+                nnt[str(new_row)] = nrow
+                mv_row = copy.deepcopy(tpl_mv)
+                mv_row["_iID"], mv_row["_iValue_default"] = new_mv, new_row
+                mvt[str(new_mv)] = mv_row
+                normals.append(new_mv)
+        before = npc.get("_iNormalDrop")
+        if normals != (list(before) if isinstance(before, list) else []):
+            npc["_iNormalDrop"] = normals
 
     def apply(self):
         with LOCK:
