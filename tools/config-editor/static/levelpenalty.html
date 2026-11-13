@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RO3 Plus - Level Penalty</title>
+<style>
+:root{
+  --bg:#f4f6fa; --panel:#ffffff; --panel2:#f0f3f8; --line:#dfe5ee; --text:#1b2433; --muted:#6a778c;
+  --accent:#3b6df0; --accent-d:#2c55c7; --ok:#18a56b; --warn:#c98a0b; --bad:#d6404f; --chip:#e8eefc; --edit:#fff6dc;
+  --shadow:0 1px 2px rgba(20,30,50,.06),0 4px 14px rgba(20,30,50,.06);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0e1420; --panel:#151d2c; --panel2:#1b2638; --line:#27344b; --text:#e6ecf6; --muted:#8c9bb3;
+  --accent:#6b93ff; --accent-d:#5a82f0; --ok:#3ccf91; --warn:#f0b64a; --bad:#ff7380; --chip:#22314f; --edit:#3a3216;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:7px 14px;border-radius:8px}
+button:hover{background:var(--panel2)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{background:var(--accent-d)}
+button.primary:disabled{opacity:.5;cursor:default}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--text);background:var(--panel2)}
+input,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+header .path{color:var(--muted);font-size:12px;max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .spacer{flex:1}
+nav.top{display:flex;gap:4px;background:var(--panel2);padding:3px;border-radius:10px}
+nav.top a{padding:5px 14px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:600}
+nav.top a.on{background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+.pill{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)}
+details.more{position:relative}
+details.more summary{list-style:none;cursor:pointer;padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+details.more summary::-webkit-details-marker{display:none}
+details.more .menu{position:absolute;right:0;top:110%;z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;display:grid;gap:4px;min-width:260px}
+details.more .menu button{text-align:left;border-color:transparent}
+.banner{margin:12px 20px 0;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.banner.warn{border-color:var(--warn)} .banner.bad{border-color:var(--bad)} .banner.ok{border-color:var(--ok)}
+.banner .grow{flex:1}
+.tabs{display:flex;gap:2px;padding:10px 20px 0;flex-wrap:wrap}
+.tabs .tab{padding:8px 18px;border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;background:var(--panel2);color:var(--muted);font-weight:600;cursor:pointer}
+.tabs .tab.on{background:var(--panel);color:var(--text)}
+.tabs .tab small{font-weight:400;margin-left:6px}
+.hint{color:var(--muted);font-size:12px}
+main{flex:1;overflow:auto;padding:0 20px 20px;min-height:0}
+.card{background:var(--panel);border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;box-shadow:var(--shadow);padding:16px 18px}
+.intro{margin:0 0 12px;color:var(--muted)}
+.intro b{color:var(--text)}
+.planbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.cols{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+.col{flex:1;min-width:340px}
+.col h3{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+table{border-collapse:collapse;width:100%}
+th,td{padding:5px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{background:var(--panel2);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+td input{width:90px;text-align:right}
+tr.ed td input{background:var(--edit);border-color:var(--warn)}
+.addbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.addbar input{width:90px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.bar{display:inline-block;height:8px;border-radius:4px;background:var(--accent);vertical-align:middle;min-width:1px}
+.bar.bonus{background:var(--ok)} .bar.zero{background:var(--bad)}
+td.rate{font-variant-numeric:tabular-nums}
+.check{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:14px}
+.check .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.check input{width:90px}
+.check .out{margin-top:6px;font-weight:600}
+.unsaved{color:var(--warn);font-weight:600}
+.err{color:var(--bad)}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;padding:9px 16px;border-radius:10px;box-shadow:var(--shadow);display:none;z-index:30;max-width:80vw}
+.toast.ok{background:var(--ok)}
+</style>
+</head>
+<body>
+<header>
+  <h1>RO3 Plus Config Editor</h1>
+  <nav class="top"><a href="/">Skills</a><a href="/items">Items</a><a href="/shops">Shops</a><a href="/texts">Descriptions</a><a href="/mobs">Mobs</a><a href="/levelpenalty" class="on">Level penalty</a></nav>
+  <span class="path" id="home"></span>
+  <span class="pill" id="pill">...</span>
+  <span class="spacer"></span>
+  <button class="primary" id="btnApply" disabled>Apply to game</button>
+  <details class="more"><summary>More</summary><div class="menu">
+    <button id="btnRestore">Put the untouched originals back</button>
+    <button id="btnDiscard">Discard all my edits</button>
+    <button id="btnRebase">Use current files as new original</button>
+  </div></details>
+</header>
+<div id="banner"></div>
+<div class="tabs"><div class="tab on" id="tabExp" data-t="exp">EXP</div><div class="tab" id="tabDrop" data-t="drop">Drop</div></div>
+<main><div class="card" id="card"></div></main>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let D = null, META = null, tab = "exp", plan = null;
+let W = {exp: [], drop: {}};      // what is on screen (steps = [[difference, rate], ...])
+let previewTimer = null, PV = null;
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function toast(msg, ok){ const t=$("toast"); t.textContent=msg; t.className="toast"+(ok?" ok":""); t.style.display="block"; clearTimeout(toast.h); toast.h=setTimeout(()=>t.style.display="none", ok?9000:7000); }
+async function api(path, body){
+  const r = await fetch(path, body===undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  const t = await r.text(); let j; try{ j=JSON.parse(t);}catch(e){ j=null; }
+  if(!r.ok) throw new Error((j&&j.error)||t||("HTTP "+r.status));
+  return j ?? t;
+}
+const same = (a, b) => JSON.stringify(sort(a)) === JSON.stringify(sort(b));
+const sort = s => s.map(x => [Number(x[0]), Number(x[1])]).sort((a, b) => b[0] - a[0]);
+const fmt = d => d > 0 ? "+" + d : String(d);
+
+function renderMeta(){
+  const m = META; $("home").textContent = m.home;
+  const p = $("pill");
+  if(m.fileStatus==="external"){ p.textContent="files changed outside"; p.className="pill warn"; }
+  else if(m.changed===0 && m.fileStatus==="pristine"){ p.textContent="original"; p.className="pill ok"; }
+  else if(m.inSync){ p.textContent="applied"; p.className="pill ok"; }
+  else { p.textContent=m.changed+" table"+(m.changed===1?"":"s")+" edited, not applied"; p.className="pill warn"; }
+  $("btnApply").disabled = m.fileStatus==="external" || (m.inSync && !dirty()) || (m.changed===0 && m.fileStatus==="pristine" && !dirty());
+  let b = "";
+  if(m.fileStatus==="external") b = '<div class="banner bad"><span class="grow">LvExpCorrectionConfig or DropAttenuationConfig changed outside this tool. Use More &gt; Use current files as new original before applying.</span></div>';
+  else if(m.serverRunning) b = '<div class="banner warn"><span class="grow">The server is running. It reads these tables at start-up: apply, then restart it.</span></div>';
+  $("banner").innerHTML = b;
+}
+function dirtyExp(){ return !same(W.exp, D.exp.steps); }
+function dirtyPlan(p){ return !same(W.drop[p], D.drop[p].steps); }
+function dirty(){ return !!D && (dirtyExp() || Object.keys(D.drop).some(dirtyPlan)); }
+function tabs(){
+  $("tabExp").innerHTML = "EXP" + (D.exp.edited || dirtyExp() ? "<small>edited</small>" : "");
+  const dd = Object.keys(D.drop).some(p => D.drop[p].edited || dirtyPlan(p));
+  $("tabDrop").innerHTML = "Drop" + (dd ? "<small>edited</small>" : "");
+  $("tabExp").className = "tab" + (tab==="exp" ? " on" : ""); $("tabDrop").className = "tab" + (tab==="drop" ? " on" : "");
+}
+function cur(){ return tab === "exp" ? W.exp : W.drop[plan]; }
+function origSteps(){ return tab === "exp" ? D.exp.original : D.drop[plan].original; }
+function savedSteps(){ return tab === "exp" ? D.exp.steps : D.drop[plan].steps; }
+
+function render(){
+  tabs(); renderMeta();
+  const exp = tab === "exp";
+  const rows = sort(cur());
+  const o = origSteps();
+  let h = "";
+  if(exp){
+    h += '<p class="intro"><b>EXP by level difference.</b> <b>Difference</b> = monster level minus your level (+10 means the monster is 10 levels higher, -10 means 10 levels lower). <b>Rate</b> = percent of the normal EXP: 100 is full, 0 is nothing, above 100 is bonus EXP. Job EXP follows Base EXP. Levels between the steps, and before the first step on each side, get 100.</p>';
+  } else {
+    const u = D.drop[plan].usedBy || [];
+    h += '<p class="intro"><b>Drop count by level difference.</b> A drop row that chooses a plan has its item count scaled by the plan\'s rate, using the same Difference as the EXP page (monster level minus your level). Drops that choose no plan are never reduced. Only the existing plans can be edited. Pick the plan for a drop on the Mobs page.</p>';
+    h += '<div class="planbar"><b>Plan</b> <select id="plan">' + Object.keys(D.drop).map(p => '<option value="'+p+'"'+(p===plan?" selected":"")+'>Plan '+p+(D.drop[p].edited||dirtyPlan(p)?" (edited)":"")+'</option>').join("") + '</select>' +
+         '<span class="hint">' + (u.length ? 'Used by '+u.length+' drop row'+(u.length===1?"":"s")+' (DropGroupConfig id'+(u.length===1?"":"s")+' '+u.slice(0,12).join(", ")+(u.length>12?", ...":"")+')' : 'No drop row uses this plan right now.') + '</span></div>';
+  }
+  h += '<div class="cols"><div class="col"><h3>Steps (what you edit)</h3><table><thead><tr><th>Difference</th><th>Rate %</th><th></th></tr></thead><tbody>';
+  if(!rows.length) h += '<tr><td colspan="3" class="hint">No steps: everything is 100%.</td></tr>';
+  rows.forEach(([d, r], i) => {
+    const was = o.find(x => x[0] === d);
+    const ed = !was || was[1] !== r;
+    h += '<tr class="'+(ed?"ed":"")+'"><td><input type="number" step="1" data-i="'+i+'" data-k="d" value="'+d+'"></td><td><input type="number" step="any" min="0" data-i="'+i+'" data-k="r" value="'+r+'"></td><td><button class="ghost" data-del="'+i+'" title="Remove this step">&times;</button></td></tr>';
+  });
+  h += '</tbody></table>';
+  h += '<div class="addbar">Difference <input id="addD" type="number" step="1" placeholder="e.g. 10"> Rate % <input id="addR" type="number" step="any" min="0" placeholder="e.g. 140"> <button id="add">Add step</button></div>';
+  h += '<div class="btns"><button class="primary" id="save"'+((exp?dirtyExp():dirtyPlan(plan))?"":" disabled")+'>Save '+(exp?"EXP table":"plan "+plan)+'</button><button id="undo"'+((exp?dirtyExp():dirtyPlan(plan))?"":" disabled")+'>Undo unsaved changes</button><button id="orig"'+(same(cur(), o)?" disabled":"")+'>Back to original steps</button></div>';
+  h += '<div class="hint" style="margin-top:6px">'+((exp?dirtyExp():dirtyPlan(plan))?'<span class="unsaved">Unsaved changes.</span> ':"")+'Save keeps your steps in overrides/levelpenalty.json. Apply to game (top right) writes them into the game tables.</div>';
+  h += '<div class="check"><b>Check one case</b><div class="row">Your level <input id="cp" type="number" min="1" max="999" value="'+(check.p)+'"> Monster level <input id="cm" type="number" min="1" max="999" value="'+(check.m)+'"> <button id="go">Check</button></div><div class="out" id="out"></div></div>';
+  h += '</div><div class="col"><h3>What this gives (checked by the server code rules)</h3><table><thead><tr><th>Difference</th><th>Monster is</th><th>Rate %</th><th></th></tr></thead><tbody id="pv"><tr><td colspan="4" class="hint">...</td></tr></tbody></table></div></div>';
+  $("card").innerHTML = h;
+  wire();
+  schedulePreview();
+}
+const check = {p: 100, m: 110};
+
+function wire(){
+  if($("plan")) $("plan").onchange = e => { plan = e.target.value; render(); };
+  $("card").querySelectorAll("input[data-i]").forEach(inp => inp.onchange = () => {
+    const rows = sort(cur()); const i = +inp.dataset.i; const v = inp.value === "" ? NaN : Number(inp.value);
+    if(!Number.isFinite(v)){ toast("Type a number."); render(); return; }
+    rows[i][inp.dataset.k === "d" ? 0 : 1] = v;
+    setCur(rows); render();
+  });
+  $("card").querySelectorAll("button[data-del]").forEach(b => b.onclick = () => { const rows = sort(cur()); rows.splice(+b.dataset.del, 1); setCur(rows); render(); });
+  $("add").onclick = () => {
+    const d = $("addD").value, r = $("addR").value;
+    if(d === "" || r === ""){ toast("Fill in both Difference and Rate."); return; }
+    const rows = sort(cur());
+    if(rows.some(x => x[0] === Number(d))){ toast("Difference " + d + " is already a step. Change its rate in the list instead."); return; }
+    rows.push([Number(d), Number(r)]); setCur(rows); render();
+  };
+  $("save").onclick = save;
+  $("undo").onclick = () => { setCur(JSON.parse(JSON.stringify(savedSteps()))); render(); };
+  $("orig").onclick = () => { setCur(JSON.parse(JSON.stringify(origSteps()))); render(); };
+  $("go").onclick = runCheck;
+  ["cp", "cm"].forEach(id => $(id).onkeydown = e => { if(e.key === "Enter") runCheck(); });
+  runCheck(true);
+}
+function setCur(rows){ if(tab === "exp") W.exp = rows; else W.drop[plan] = rows; }
+
+function schedulePreview(){
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(async () => {
+    try{
+      const r = await api("/api/levelpenalty/preview", {kind: tab, plan: plan, steps: cur()});
+      const body = $("pv"); if(!body) return;
+      let h = "";
+      r.runs.forEach(x => {
+        const lo = x.from, hi = x.to;
+        const lab = hi >= r.high ? fmt(lo) + " and higher" : lo <= r.low ? fmt(hi) + " and lower" : lo === hi ? fmt(lo) : fmt(lo) + " to " + fmt(hi);
+        const n = (k, w) => k + " level" + (k === 1 ? "" : "s") + " " + w;
+        let plain;
+        if(lo > 0) plain = hi >= r.high ? lo + " or more levels higher" : lo === hi ? n(lo, "higher") : lo + " to " + hi + " levels higher";
+        else if(hi < 0) plain = lo <= r.low ? (-hi) + " or more levels lower" : lo === hi ? n(-hi, "lower") : (-hi) + " to " + (-lo) + " levels lower";
+        else if(lo === 0 && hi === 0) plain = "same level";
+        else plain = (lo < 0 ? (-lo) + " lower" : "same level") + " to " + (hi > 0 ? hi + " higher" : "same level");
+        const w = Math.min(100, Math.round(x.rate / 1.5));
+        h += '<tr><td>' + lab + '</td><td>' + esc(plain) + '</td><td class="rate">' + x.rate + '</td><td><span class="bar' + (x.rate > 100 ? " bonus" : x.rate === 0 ? " zero" : "") + '" style="width:' + w + 'px"></span></td></tr>';
+      });
+      body.innerHTML = h;
+    }catch(e){ const body = $("pv"); if(body) body.innerHTML = '<tr><td colspan="4" class="err">' + esc(e.message) + '</td></tr>'; }
+  }, 150);
+}
+async function runCheck(quiet){
+  check.p = +$("cp").value || 1; check.m = +$("cm").value || 1;
+  try{
+    const r = await api("/api/levelpenalty/check", {kind: tab, plan: plan, steps: cur(), player: check.p, monster: check.m});
+    const d = r.difference;
+    const who = d > 0 ? "the monster is " + d + " level" + (d===1?"":"s") + " higher" : d < 0 ? "the monster is " + (-d) + " level" + (d===-1?"":"s") + " lower" : "same level";
+    $("out").textContent = "Level " + check.p + " vs monster level " + check.m + " (" + who + "): " + r.rate + "%" +
+      (tab === "exp" ? " of the normal EXP (1000 Base EXP becomes " + Math.floor(1000 * r.rate / 100) + ")" : " of the normal drop count");
+    $("out").className = "out";
+  }catch(e){ if(!quiet){ $("out").textContent = e.message; $("out").className = "out err"; } else { $("out").textContent = ""; } }
+}
+async function save(){
+  try{
+    D = await api("/api/levelpenalty/set", {kind: tab, plan: plan, steps: cur()});
+    META = D.meta; syncW(); render(); toast("Saved. Use Apply to game when you are ready, then restart the server.", true);
+  }catch(e){ toast(e.message); }
+}
+function syncW(){
+  W.exp = JSON.parse(JSON.stringify(D.exp.steps));
+  W.drop = {}; Object.keys(D.drop).forEach(p => W.drop[p] = JSON.parse(JSON.stringify(D.drop[p].steps)));
+}
+$("tabExp").onclick = () => { tab = "exp"; render(); };
+$("tabDrop").onclick = () => { tab = "drop"; render(); };
+$("btnApply").onclick = async () => {
+  $("btnApply").disabled = true;
+  try{
+    if(dirty()){
+      if(!confirm("You have unsaved changes. Save them and apply?")){ renderMeta(); return; }
+      if(dirtyExp()) D = await api("/api/levelpenalty/set", {kind: "exp", steps: W.exp});
+      for(const p of Object.keys(D.drop)) if(dirtyPlan(p)) D = await api("/api/levelpenalty/set", {kind: "drop", plan: p, steps: W.drop[p]});
+      syncW();
+    }
+    const r = await api("/api/levelpenalty/apply", {}); META = r.meta; D = await api("/api/levelpenalty/get");
+    toast("Applied " + r.tables + " table" + (r.tables===1?"":"s") + ". Restart the server to use them.", true);
+  }catch(e){ toast(e.message); }
+  render();
+};
+$("btnRebase").onclick = async () => { if(!confirm("Use the current LvExpCorrectionConfig and DropAttenuationConfig as the new untouched originals? Your edits are kept and laid on top.")) return;
+  try{ await api("/api/levelpenalty/rebaseline", {}); await boot(); toast("Current files are now the originals.", true);}catch(e){toast(e.message);} };
+$("btnRestore").onclick = async () => { if(!confirm("Put the two untouched original tables back in the game folder? (A backup is made first. Your edits stay saved.)")) return;
+  try{ META = await api("/api/levelpenalty/restore-original", {}); D.meta = META; render(); toast("Originals restored. Restart the server.", true);}catch(e){toast(e.message);} };
+$("btnDiscard").onclick = async () => { if(!confirm("Throw away ALL your saved level penalty edits?")) return;
+  try{ D = await api("/api/levelpenalty/reset-all", {}); META = D.meta; syncW(); render(); toast("Edits discarded.", true);}catch(e){toast(e.message);} };
+async function boot(){
+  D = await api("/api/levelpenalty/get"); META = D.meta; syncW();
+  if(!plan || !D.drop[plan]) plan = Object.keys(D.drop)[0] || null;
+  render();
+}
+boot().catch(e => { $("card").innerHTML = '<p class="err">' + esc(e.message) + '</p>'; toast(e.message); });
+</script>
+</body>
+</html>
