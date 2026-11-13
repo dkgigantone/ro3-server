@@ -244,16 +244,46 @@ namespace Ro3Emu.ClientHooks
                 var id = table != null ? LuaPatches.ToLong(First(_rawget?.Obf_HuA(table, 1L))) : LuaPatches.ToLong(key);
                 if (Texts.TryGetValue(id, out var text))
                 {
-                    // @{1}, @{2}...: the strings after the id in the key list, as the game's own Trans fills them.
+                    if (_slotLogs < 6 && (text.Contains("${") || text.Contains("^{")))
+                    {
+                        _slotLogs++;
+                        Log("Trans slots for id " + id + ": key " + Dump(key) + " param " + Dump(param));
+                    }
+                    // @{n} and ^{n}: the strings after the id in the key list (items use @, skill texts use ^ for colour tags).
                     if (table != null)
-                        for (var i = 2L; First(_rawget.Obf_HuA(table, i)) is object arg && i < 12; i++)
-                            text = text.Replace("@{" + (i - 1) + "}", Convert.ToString(arg, CultureInfo.InvariantCulture));
+                        for (var i = 2L; First(_rawget.Obf_HuA(table, i)) is object arg && i < 40; i++)
+                        {
+                            var value = Convert.ToString(arg, CultureInfo.InvariantCulture);
+                            text = text.Replace("@{" + (i - 1) + "}", value).Replace("^{" + (i - 1) + "}", value);
+                        }
+                    // ${n}: the numbers of the skill level row (_kDescData), passed as the second argument.
+                    if (param is Obf_R.Obf_ff numbers)
+                        for (var i = 1L; First(_rawget.Obf_HuA(numbers, i)) is object arg && i < 40; i++)
+                            text = text.Replace("${" + i + "}", Convert.ToString(arg, CultureInfo.InvariantCulture));
                     if (_transHits++ < 4) Log("Trans answered id " + id + " -> " + text);
                     return text;
                 }
             }
             catch (Exception e) { Log("Trans wrapper: " + e.GetType().Name + ": " + e.Message); }
             return First(_trans?.Obf_HuA(key, param));
+        }
+
+        private static int _slotLogs;
+
+        /// <summary>A Lua list or value as text for the log: {a|b|c}.</summary>
+        private static string Dump(object o)
+        {
+            if (o == null) return "nil";
+            if (!(o is Obf_R.Obf_ff t)) return o.GetType().Name + ":" + Convert.ToString(o, CultureInfo.InvariantCulture);
+            var sb = new System.Text.StringBuilder("{");
+            for (var i = 1L; i <= 40; i++)
+            {
+                var v = First(_rawget.Obf_HuA(t, i));
+                if (v == null) break;
+                if (i > 1) sb.Append('|');
+                sb.Append(Convert.ToString(v, CultureInfo.InvariantCulture));
+            }
+            return sb.Append('}').ToString();
         }
 
         private static string Unescape(string s)

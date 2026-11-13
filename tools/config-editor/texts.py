@@ -15,6 +15,9 @@ from common import APP_DIR, LOCK, atomic_write, compact, read_json, update_overl
 
 OVERRIDES = APP_DIR / "overrides" / "texts.json"
 ITEMS = "Items"
+SKILLS = "Skills"
+MAX_SKILL_TEXT = 3000
+PLACEHOLDER = re.compile(r"\$\{\d+\}|\^\{\d+\}")
 MAX_TEXT = 1500
 NEW_ID_BASE = 99_920_000_000        # own text ids: base + item id (the custom hats use 999100000xx)
 
@@ -44,6 +47,8 @@ class TextsEditor:
         self.home = home
         self.items = None
         self.loc = None
+        self.skill_groups = None
+        self.skill_row_text = {}
 
     @property
     def config_dir(self):
@@ -134,9 +139,99 @@ class TextsEditor:
                 notes.append("This item has no use effect, so there is nothing to build a description from. Write it by hand.")
             return {"text": " ".join(lines[:1]) + ("\n" + " ".join(lines[1:]) if len(lines) > 1 else ""), "notes": notes}
 
+    # ---- skill descriptions -------------------------------------------------------------------------------
+    # One text template per skill (shared by every level row and often by a few skills). The client fills in
+    # ${n} from the level row's _kDescData and ^{n} from the colour tags in its _iDescription, so only the
+    # template is edited here; the hook (ConfigOverlay.Trans) does the filling for our own text.
+
+    def _load_skills(self):
+        if self.skill_groups is not None:
+            return
+        self._load()
+        path = self.config_dir / "SkillConfig.json"
+        if not path.is_file():
+            raise FileNotFoundError(f"Could not find {path}. Pick the RO3Emu folder that contains data\\config.")
+        data = _index(read_json(path, {}))
+        groups, row_text = {}, {}
+        for sid, r in data.items():
+            if not isinstance(r, dict):
+                continue
+            d = self._desc_id(r)
+            if not d:
+                continue
+            name = self._fmt(r.get("_iName")) or "(no English name)"
+            g = groups.setdefault(d, {"rows": [], "names": {}})
+            g["names"][name] = g["names"].get(name, 0) + 1
+            desc = r.get("_iDescription") or []
+            g["rows"].append({"id": int(sid), "level": r.get("_iLevel", 0), "name": name,
+                              "data": [str(x) for x in (r.get("_kDescData") or [])],
+                              "params": [str(x) for x in desc[1:]]})
+            row_text[str(sid)] = d
+        for g in groups.values():
+            g["rows"].sort(key=lambda x: x["id"])
+        self.skill_groups, self.skill_row_text = groups, row_text
+
+    def _skill_card(self, tid, ov):
+        g = self.skill_groups[tid]
+        shipped = self._text(tid)
+        mine = ov[SKILLS].get(str(tid))
+        names = sorted(g["names"], key=lambda n: -g["names"][n])
+        return {"textId": tid, "name": names[0], "otherNames": names[1:6], "skills": len(names), "rowCount": len(g["rows"]),
+                "shipped": shipped, "text": mine if mine is not None else shipped, "edited": mine is not None,
+                "rows": g["rows"][:60]}
+
+    def search_skills(self, q):
+        with LOCK:
+            self._load_skills()
+            q = (q or "").strip().lower()
+            ov = self.load_overrides()
+            tids = []
+            if q:
+                if q.isdigit():
+                    if q in self.skill_row_text:
+                        tids.append(self.skill_row_text[q])
+                    if int(q) in self.skill_groups and int(q) not in tids:
+                        tids.append(int(q))
+                for tid, g in self.skill_groups.items():
+                    if len(tids) >= 40:
+                        break
+                    if tid not in tids and any(q in n.lower() for n in g["names"]):
+                        tids.append(tid)
+            else:
+                tids = [int(t) for t in sorted(ov[SKILLS], key=int) if int(t) in self.skill_groups]
+            return {"rows": [self._skill_card(t, ov) for t in tids[:40]],
+                    "edited": len(ov[ITEMS]) + len(ov[SKILLS]), "overlayFile": str(OVERRIDES)}
+
+    def set_skill(self, text_id, text):
+        with LOCK:
+            self._load_skills()
+            tid = int(text_id)
+            if tid not in self.skill_groups:
+                raise ValueError(f"Text id {tid} is not a skill description in SkillConfig.")
+            ov = self.load_overrides()
+            text = (text or "").replace("\r\n", "\n").strip()
+            warnings = []
+            if not text:
+                ov[SKILLS].pop(str(tid), None)
+            else:
+                if len(text) > MAX_SKILL_TEXT:
+                    raise ValueError(f"The description is too long (max {MAX_SKILL_TEXT} characters).")
+                ov[SKILLS][str(tid)] = text
+                missing = sorted(set(PLACEHOLDER.findall(self._text(tid))) - set(PLACEHOLDER.findall(text)))
+                if missing:
+                    warnings.append("The original uses " + ", ".join(missing) + " which your text does not: those numbers or colours will not show.")
+            self._save(ov)
+            result = self.apply()
+            result["warnings"] = warnings
+            return result
+
+    def reset_skill(self, text_id):
+        return self.set_skill(text_id, "")
+
     def load_overrides(self):
         ov = read_json(OVERRIDES, {}) or {}
         ov.setdefault(ITEMS, {})
+        ov.setdefault(SKILLS, {})
         return ov
 
     def _save(self, ov):
@@ -174,7 +269,7 @@ class TextsEditor:
                 out = [self._row(i, ov) for i in ids[:40]]
             else:
                 out = [self._row(i, ov) for i in sorted(ov[ITEMS], key=int)]
-            return {"rows": [r for r in out if r], "edited": len(ov[ITEMS]), "overlayFile": str(OVERRIDES)}
+            return {"rows": [r for r in out if r], "edited": len(ov[ITEMS]) + len(ov[SKILLS]), "overlayFile": str(OVERRIDES)}
 
     def set_item(self, item_id, text):
         with LOCK:
@@ -209,6 +304,10 @@ class TextsEditor:
             if d not in seen:
                 seen.add(d)
                 lines.append("\t".join(["Text", str(d), "@text", _esc(text)]))
+        for tid, text in sorted(ov[SKILLS].items(), key=lambda kv: int(kv[0])):
+            if int(tid) not in seen:
+                seen.add(int(tid))
+                lines.append("\t".join(["Text", tid, "@text", _esc(text)]))
         return lines
 
     def apply(self):
@@ -218,4 +317,4 @@ class TextsEditor:
             ov = self.load_overrides()
             update_overlay({"ItemConfig", "Text"}, self.overlay_lines(ov))
             from common import LAST_PUBLISH
-            return {"edited": len(ov[ITEMS]), "published": dict(LAST_PUBLISH)}
+            return {"edited": len(ov[ITEMS]) + len(ov[SKILLS]), "published": dict(LAST_PUBLISH)}
