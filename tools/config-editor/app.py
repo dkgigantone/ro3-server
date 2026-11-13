@@ -395,6 +395,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/texts/search":
                 from urllib.parse import parse_qs
                 return self.ok(self.texts.search((parse_qs(urlparse(self.path).query).get("q") or [""])[0]))
+            if path == "/api/texts/skills":
+                from urllib.parse import parse_qs
+                return self.ok(self.texts.search_skills((parse_qs(urlparse(self.path).query).get("q") or [""])[0]))
             if path == "/api/texts/suggest":
                 from urllib.parse import parse_qs
                 return self.ok(self.texts.suggest((parse_qs(urlparse(self.path).query).get("item") or ["0"])[0]))
@@ -450,6 +453,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.ok(self.shops.set_many(body["items"]))
             if path == "/api/texts/set":
                 return self.ok(self.texts.set_item(body["item"], body.get("text", "")))
+            if path == "/api/texts/skill-set":
+                return self.ok(self.texts.set_skill(body["id"], body.get("text", "")))
+            if path == "/api/texts/skill-reset":
+                return self.ok(self.texts.reset_skill(body["id"]))
             if path == "/api/texts/reset":
                 return self.ok(self.texts.reset_item(body["item"]))
             if path == "/api/texts/apply":
