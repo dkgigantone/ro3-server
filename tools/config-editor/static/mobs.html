@@ -208,12 +208,14 @@ function showDetail(d){
     + '<div style="display:flex;gap:8px;margin:8px 0"><button class="primary" id="save">Save</button><button id="reset">Back to original</button></div>'
     + '<h3>Read-only (from its skills and AI)</h3><div class="ro"><span>Attack range</span><span>'+m.attackRange+' m'+(m.ownAttack?"":" (server default, no normal attack listed)")+'</span>'
     + '<span>Attack interval (ASPD)</span><span>'+m.swingMs+' ms per swing</span><span>Skill range</span><span>'+(m.skillRange==null?"no other skills":m.skillRange+" m ("+m.skills+" skill"+(m.skills===1?"":"s")+")")+'</span><span>View range</span><span>'+m.view+' m</span><span>AI</span><span>'+m.ai+'</span></div>'
-    + '<h3>Item drops</h3><div id="dropsBox"></div>';
+    + '<h3>Item drops</h3><div id="dropsBox"></div>'
+    + '<h3>Spawn maps</h3><div id="spawnBox" class="hint">Loading the spawn data...</div>';
   if(d.drops.exp.length) h += '<div class="hint">Base EXP rows: '+d.drops.exp.map(x=>x.min===x.max?x.min:x.min+"-"+x.max).join(", ")+' (edit with the Base EXP field above)</div>';
   $("detail").innerHTML = h;
   $("save").onclick = save; $("reset").onclick = resetMob;
   DR = {list: JSON.parse(JSON.stringify(d.drops.items)), saved: d.drops.edited, level: DR && DR.id===m.id ? DR.level : "", sel: 0, id: m.id, mobLevel: m.level, dirty: false};
   renderDrops();
+  loadSpawns(m.id);
   const base = document.querySelector('#detail [data-k="exp"]'), job = $("jobExp"), pct = META.jobPct;
   base.addEventListener("input", () => { job.value = Math.floor(Number(base.value||0)*pct/10000); });
   job.addEventListener("input", () => { base.value = pct>0 ? Math.ceil(Number(job.value||0)*10000/pct) : 0; job.value = Math.floor(Number(base.value)*pct/10000); });
@@ -299,6 +301,66 @@ async function save(){
   catch(e){ toast(e.message); }
 }
 async function resetMob(){ try{ const d = await api("/api/mobs/reset", {id:cur}); META = d.meta; renderMeta(); showDetail(d); await load(); toast("Back to the original.", true);}catch(e){toast(e.message);} }
+let SP = null;
+async function loadSpawns(id){
+  const box = $("spawnBox"); if(!box) return;
+  try{ const d = await api("/api/spawns/get?id="+id); if(cur !== id) return; SP = {d, pools: JSON.parse(JSON.stringify(d.pools)), fixed: JSON.parse(JSON.stringify(d.fixed)), dirty:false, id}; renderSpawns(); }
+  catch(e){ if(cur === id) box.textContent = "Could not read the spawn data: "+e.message; }
+}
+function spawnBar(m){
+  const st = m.fileStatus==="external" ? "a scene file was changed outside this tool" : m.fileStatus==="applied" ? "applied" : "untouched";
+  return '<div class="hint">Spawn edits saved: <b>'+m.changed+'</b> &middot; scene files: '+st+(m.inSync?"":" &middot; <b>not applied yet</b>")+'</div>'
+    + '<div style="display:flex;gap:8px;margin:6px 0;flex-wrap:wrap"><button class="primary" id="spApply">Apply spawns to game</button><button id="spRestore">Restore original spawn files</button>'
+    + '<button class="ghost" id="spDiscard">Discard all spawn edits</button>'+(m.fileStatus==="external"?'<button id="spRebase">Use current scene files as new original</button>':'')+'</div>';
+}
+function renderSpawns(){
+  const box = $("spawnBox"); if(!box || !SP) return; const d = SP.d, mx = d.meta.countMax;
+  const warn = r => r.usedMax > r.points ? ' <span class="warnicon" title="The monsters in this group ask for up to '+r.usedMax+' but it only has '+r.points+' spawn points, so some will not appear.">!</span>' : "";
+  let h = '<div class="hint">Where this monster appears on the public maps. In a <b>pool</b> group each monster spawns a random number from min to max when the map loads, and a killed one comes back after the group\'s respawn time. Changes need Apply spawns to game, then a server restart.</div>';
+  if(!SP.pools.length && !SP.fixed.length) h += '<div class="empty">This monster is not on any map yet. Use Add to a map below.</div>';
+  if(SP.pools.length){
+    h += '<div style="overflow-x:auto"><table><tr><th>Map</th><th>Group</th><th>Min</th><th>Max</th><th>Points</th><th></th></tr>' + SP.pools.map((r,i) => {
+      const was = r.origMin==null ? '<span class="tag new">NEW</span>' : (r.origMin===r.min && r.origMax===r.max ? "" : '<span class="hint">was '+r.origMin+(r.origMax!==r.origMin?"-"+r.origMax:"")+'</span>');
+      return '<tr class="'+(r.origMin==null?"added":"")+'"><td class="name" style="min-width:120px">'+esc(r.map)+' <span class="hint">#'+r.mapId+'</span></td><td>'+r.group+'</td>'
+        + '<td class="num'+(r.origMin!==r.min?" ed":"")+'"><input type="number" min="0" max="'+mx+'" style="width:72px" data-sp="min" data-i="'+i+'" value="'+r.min+'"></td>'
+        + '<td class="num'+(r.origMax!==r.max?" ed":"")+'"><input type="number" min="0" max="'+mx+'" style="width:72px" data-sp="max" data-i="'+i+'" value="'+r.max+'"></td>'
+        + '<td class="dim">'+r.points+warn(r)+'</td><td style="white-space:normal">'+was+' <button class="ghost" data-spdel="'+i+'" title="Remove from this map">Remove</button></td></tr>'; }).join("") + '</table></div>';
+  }
+  if(SP.fixed.length){
+    h += '<div class="hint" style="margin-top:8px">Fixed spawn points: how many points of the group are filled at once. Points are not added or removed here.</div><table><tr><th>Map</th><th>Group</th><th>Alive at once</th><th>Points</th></tr>' + SP.fixed.map((r,i) =>
+      '<tr><td class="name">'+esc(r.map)+' <span class="hint">#'+r.mapId+'</span></td><td>'+r.group+'</td><td class="num'+(r.total!==r.origTotal?" ed":"")+'"><input type="number" min="1" max="'+r.points+'" style="width:72px" data-spf="'+i+'" value="'+r.total+'"></td>'
+      + '<td class="dim">'+r.mine+' of this monster / '+r.points+' ('+r.kinds+' type'+(r.kinds===1?"":"s")+')'+(r.kinds>1?' <span class="warnicon" title="The alive total is shared with the other monsters of this group.">!</span>':'')+'</td></tr>').join("") + '</table>';
+  }
+  h += '<div class="addbar"><select id="spAddSel" style="max-width:230px"><option value="">Add to a map (pool groups)...</option>'
+    + d.addable.filter(a => !SP.pools.some(p => p.scene===a.scene && p.group===a.group)).map((a,i) => '<option value="'+a.scene+'|'+a.group+'">'+esc(a.map)+' - group '+a.group+' ('+a.kinds+' monster type'+(a.kinds===1?"":"s")+', '+a.points+' points)</option>').join("")
+    + '</select><span class="hint">min</span><input type="number" id="spAddMin" style="width:72px" min="0" max="'+mx+'" value="5"><span class="hint">max</span><input type="number" id="spAddMax" style="width:72px" min="0" max="'+mx+'" value="5"><button id="spAdd">Add</button></div>'
+    + '<div style="display:flex;gap:8px;margin:8px 0"><button class="primary" id="spSave"'+(SP.dirty?"":" disabled")+'>Save spawns</button><button id="spReset">Back to original spawns</button></div>'
+    + spawnBar(d.meta);
+  box.className = ""; box.innerHTML = h;
+  box.querySelectorAll("[data-sp]").forEach(el => el.addEventListener("input", () => { SP.pools[+el.dataset.i][el.dataset.sp] = Number(el.value); SP.dirty = true; $("spSave").disabled = false; }));
+  box.querySelectorAll("[data-spf]").forEach(el => el.addEventListener("input", () => { SP.fixed[+el.dataset.spf].total = Number(el.value); SP.dirty = true; $("spSave").disabled = false; }));
+  box.querySelectorAll("[data-spdel]").forEach(b => b.onclick = () => { SP.pools.splice(+b.dataset.spdel, 1); SP.dirty = true; renderSpawns(); });
+  $("spAdd").onclick = () => {
+    const v = $("spAddSel").value; if(!v) return toast("Pick a map first.");
+    const [scene, group] = v.split("|"); const a = d.addable.find(x => x.scene===scene && String(x.group)===group); const lo = Number($("spAddMin").value), hi = Number($("spAddMax").value);
+    if(Number.isNaN(lo) || Number.isNaN(hi) || lo<0 || hi<lo) return toast("Min must be 0 or more, and max must not be smaller than min.");
+    SP.pools.push({scene, mapId:a.mapId, map:a.map, group:a.group, points:a.points, min:lo, max:hi, origMin:null, origMax:null, usedMax:a.usedMax+hi, kinds:a.kinds+1}); SP.dirty = true; renderSpawns();
+  };
+  $("spSave").onclick = async () => {
+    try{ const r = await api("/api/spawns/set", {id:SP.id, pools:SP.pools.map(p=>({scene:p.scene, group:p.group, min:p.min, max:p.max})), fixed:SP.fixed.map(p=>({scene:p.scene, group:p.group, total:p.total}))});
+      SP = {d:r, pools:JSON.parse(JSON.stringify(r.pools)), fixed:JSON.parse(JSON.stringify(r.fixed)), dirty:false, id:SP.id}; renderSpawns(); toast("Spawns saved. Press Apply spawns to game to write them.", true); }
+    catch(e){ toast(e.message); } };
+  $("spReset").onclick = async () => { try{ const r = await api("/api/spawns/reset", {id:SP.id}); SP = {d:r, pools:JSON.parse(JSON.stringify(r.pools)), fixed:JSON.parse(JSON.stringify(r.fixed)), dirty:false, id:SP.id}; renderSpawns(); toast("Back to the original spawns.", true);}catch(e){toast(e.message);} };
+  $("spApply").onclick = async () => { if(SP.dirty && !confirm("You have spawn changes that are not saved. Apply without them?")) return;
+    $("spApply").disabled = true;
+    try{ const r = await api("/api/spawns/apply", {}); toast("Applied to "+r.scenes+" map file"+(r.scenes===1?"":"s")+". Restart the server to use them.", true); await loadSpawns(SP.id); }catch(e){ toast(e.message); $("spApply").disabled = false; } };
+  $("spRestore").onclick = async () => { if(!confirm("Put the untouched original spawn files back in the game folder? (A backup is made first. Your edits stay saved.)")) return;
+    try{ await api("/api/spawns/restore-original", {}); await loadSpawns(SP.id); toast("Original spawn files restored. Restart the server.", true);}catch(e){toast(e.message);} };
+  $("spDiscard").onclick = async () => { if(!confirm("Throw away ALL your saved spawn edits (every monster)?")) return;
+    try{ await api("/api/spawns/reset-all", {}); await loadSpawns(SP.id); toast("Spawn edits discarded.", true);}catch(e){toast(e.message);} };
+  if($("spRebase")) $("spRebase").onclick = async () => { if(!confirm("Use the current scene files as the new untouched originals? Your edits are kept and laid on top.")) return;
+    try{ await api("/api/spawns/rebaseline", {}); await loadSpawns(SP.id); toast("Current scene files are now the originals.", true);}catch(e){toast(e.message);} };
+}
 $("btnApply").onclick = async ()=>{
   $("btnApply").disabled = true;
   try{ const r = await api("/api/mobs/apply", {}); META = r.meta; toast("Applied "+r.mobs+" monster"+(r.mobs===1?"":"s")+". Restart the server to use them.", true); }catch(e){ toast(e.message); }
