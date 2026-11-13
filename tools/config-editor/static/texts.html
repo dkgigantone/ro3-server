@@ -88,13 +88,6 @@ textarea{font:inherit;color:var(--text);background:var(--panel);border:1px solid
 .rowc.edited{background:var(--edit)}
 .search{display:flex;gap:10px;padding:14px 20px;align-items:center;flex-wrap:wrap}
 .search input{width:min(420px,70vw)}
-.seg{display:inline-flex;gap:0}
-.seg button{border-radius:0}
-.seg button:first-child{border-radius:8px 0 0 8px}
-.seg button:last-child{border-radius:0 8px 8px 0}
-.seg button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-.prev{margin-top:8px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;background:var(--panel2);white-space:normal}
-select{max-width:260px}
 main{padding:0 20px 20px}
 .card{border-top:1px solid var(--line);border-radius:14px}
 </style>
@@ -102,13 +95,12 @@ main{padding:0 20px 20px}
 <body>
 <header>
   <h1>RO3 Plus Config Editor</h1>
-  <nav class="top"><a href="/">Skills</a><a href="/items">Items</a><a href="/shops">Shops</a><a href="/texts" class="on">Descriptions</a></nav>
+  <nav class="top"><a href="/">Skills</a><a href="/items">Items</a><a href="/shops">Shops</a><a href="/texts" class="on">Descriptions</a><a href="/mobs">Mobs</a></nav>
   <span class="spacer"></span>
   <span class="pill" id="pill">...</span>
 </header>
 <div class="banner"><span class="grow">Changes the item description the <b>game client</b> shows. It is written to the client overlay and copied into the client when you press Save, so <b>restart the client</b> to see it (no server restart needed). The server is not changed. An item that already has a description keeps its text id: every item sharing that text shows the new words (the page says how many).</span></div>
-<div class="search"><span class="seg"><button id="mItems" class="on">Items</button><button id="mSkills">Skills</button></span>
-  <input id="q" placeholder="Item ID or part of the English name, e.g. 1001000 or Blue Potion" autofocus>
+<div class="search"><input id="q" placeholder="Item ID or part of the English name, e.g. 1001000 or Blue Potion" autofocus>
   <button class="primary" id="go">Search</button><button id="mine">Show my edits</button></div>
 <main><div class="card" id="card"><div class="empty">Type an item ID or name above.</div></div></main>
 <div class="toast" id="toast"></div>
@@ -123,59 +115,14 @@ async function api(path, body){
   if(!r.ok) throw new Error((j&&j.error)||t||("HTTP "+r.status));
   return j ?? t;
 }
-let last = "", mode = "items", skillRows = [];
+let last = "";
 async function search(q){
   last = q;
   try{
-    const d = await api((mode==="skills" ? "/api/texts/skills?q=" : "/api/texts/search?q=")+encodeURIComponent(q));
+    const d = await api("/api/texts/search?q="+encodeURIComponent(q));
     $("pill").textContent = d.edited + " edited";
-    if(mode==="skills") renderSkills(d.rows, q); else render(d.rows, q);
+    render(d.rows, q);
   }catch(e){ $("card").innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
-}
-function setMode(m){
-  mode = m;
-  $("mItems").className = m==="items" ? "on" : "";
-  $("mSkills").className = m==="skills" ? "on" : "";
-  $("q").placeholder = m==="skills" ? "Skill ID or part of the English name, e.g. 1310201 or Blitz Beat" : "Item ID or part of the English name, e.g. 1001000 or Blue Potion";
-  $("card").innerHTML = '<div class="empty">Type a '+(m==="skills" ? "skill" : "item")+' ID or name above.</div>';
-  $("q").value = "";
-  search("");
-}
-function renderSkills(rows, q){
-  skillRows = rows;
-  if(!rows.length){ $("card").innerHTML = `<div class="empty">${q ? "No skill found (only skills that already have a description can be edited)." : "No edited skill descriptions yet. Search for a skill."}</div>`; return; }
-  $("card").innerHTML = rows.map((r,i)=>`<div class="rowc ${r.edited?"edited":""}" data-i="${i}" data-tid="${r.textId}">
-    <div><h3>${esc(r.name)}</h3><div class="meta">Text id ${r.textId}${r.edited?' <span class="tag">edited</span>':""}</div>
-      <div class="meta">Used by <b>${r.rowCount}</b> level row${r.rowCount>1?"s":""} of <b>${r.skills}</b> skill name${r.skills>1?"s":""}${r.otherNames.length ? ": also "+esc(r.otherNames.join(", ")) : ""}.</div></div>
-    <div><textarea data-t="1" style="min-height:130px" placeholder="Skill description template">${esc(r.text)}</textarea>
-      <div class="btns"><button class="primary" data-ssave="1">Save</button>${r.edited?'<button data-sreset="1">Back to original</button>':""}
-      <span class="hint">Keep <b>$` + `{n}</b> (numbers from the level data) and <b>^{n}</b> (colour tags) where the original has them. A new line is allowed.</span></div>
-      <div class="btns"><span class="hint">Preview with</span><select data-prev="1">${r.rows.map((x,j)=>`<option value="${j}">Skill ${x.id} (Lv ${x.level})</option>`).join("")}</select></div>
-      <div class="prev" data-box="1"></div></div></div>`).join("");
-  $("card").querySelectorAll(".rowc").forEach(el=>{
-    const upd = ()=>previewSkill(el);
-    el.querySelector("textarea").oninput = upd;
-    el.querySelector("[data-prev]").onchange = upd;
-    el.querySelector("[data-ssave]").onclick = ()=>saveSkill(el);
-    const rs = el.querySelector("[data-sreset]"); if(rs) rs.onclick = ()=>resetSkill(el);
-    upd();
-  });
-}
-function previewSkill(el){
-  const r = skillRows[+el.dataset.i]; const row = r.rows[+el.querySelector("[data-prev]").value] || r.rows[0];
-  let t = el.querySelector("textarea").value
-    .replace(/\^\{(\d+)\}/g, (m,n)=> row.params[n-1] ?? "")
-    .replace(/\$\{(\d+)\}/g, (m,n)=> row.data[n-1] ?? "?");
-  t = esc(t).replace(/&lt;color=(#[0-9a-fA-F]{3,8})&gt;/g,'<span style="color:$1">').replace(/&lt;\/color&gt;/g,"</span>").replace(/\n/g,"<br>");
-  el.querySelector("[data-box]").innerHTML = t;
-}
-async function saveSkill(el){
-  try{ done(await api("/api/texts/skill-set", {id:+el.dataset.tid, text:el.querySelector("textarea").value}), "Saved."); await search(last); }
-  catch(e){ toast(e.message); }
-}
-async function resetSkill(el){
-  try{ done(await api("/api/texts/skill-reset", {id:+el.dataset.tid}), "Back to the original."); await search(last); }
-  catch(e){ toast(e.message); }
 }
 function render(rows, q){
   if(!rows.length){ $("card").innerHTML = `<div class="empty">${q ? "No item found." : "No edited descriptions yet. Search for an item."}</div>`; return; }
@@ -183,31 +130,18 @@ function render(rows, q){
     <div><h3>${esc(r.name) || "(no English name)"}</h3><div class="meta">Item ${r.id}${r.edited?' <span class="tag">edited</span>':""}</div>
       <div class="meta">${r.hasDesc ? "Has a description (text id "+r.descId+")"+(r.sharedBy? "; <b>"+r.sharedBy+" other item"+(r.sharedBy>1?"s":"")+" share this text</b>":"") : "No description yet: saving gives it one."}</div></div>
     <div><textarea data-t="1" placeholder="Description shown in the item window">${esc(r.text)}</textarea>
-      <div class="btns"><button class="primary" data-save="1">Save</button><button data-suggest="1" title="Fill the box from the item's effect, cooldown and level">Suggest</button>${r.edited?'<button data-reset="1">Back to original</button>':""}
+      <div class="btns"><button class="primary" data-save="1">Save</button>${r.edited?'<button data-reset="1">Back to original</button>':""}
       <span class="hint">Keep placeholders like @{1} if the original has them. A new line is allowed.</span></div></div></div>`).join("");
   $("card").querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>save(b.closest(".rowc")));
-  $("card").querySelectorAll("[data-suggest]").forEach(b=>b.onclick=()=>suggest(b.closest(".rowc")));
   $("card").querySelectorAll("[data-reset]").forEach(b=>b.onclick=()=>reset(b.closest(".rowc")));
 }
 function done(r, what){
   const p = r.published || {};
-  const w = (r.warnings && r.warnings.length) ? " Note: " + r.warnings.join(" ") : "";
-  toast(what+(p.ok ? " Copied into the client; restart the client to see it." : " "+(p.message||"")) + w, !!p.ok && !w);
+  toast(what+(p.ok ? " Copied into the client; restart the client to see it." : " "+(p.message||"")), !!p.ok);
 }
 async function save(el){
   try{ done(await api("/api/texts/set", {item:+el.dataset.id, text:el.querySelector("textarea").value}), "Saved."); await search(last); }
   catch(e){ toast(e.message); }
-}
-async function suggest(el){
-  try{
-    const d = await api("/api/texts/suggest?item="+el.dataset.id);
-    const box = el.querySelector("textarea");
-    if(d.text){
-      if(box.value.trim() && box.value.trim()!==d.text.trim() && !confirm("Replace the text in the box with the suggestion? (Nothing is saved until you press Save.)")) return;
-      box.value = d.text;
-    }
-    toast((d.text ? "Suggested. Edit it if you like, then press Save." : "No suggestion.") + (d.notes.length ? " " + d.notes.join(" ") : ""), !!d.text);
-  }catch(e){ toast(e.message); }
 }
 async function reset(el){
   try{ done(await api("/api/texts/reset", {item:+el.dataset.id}), "Back to the original."); await search(last); }
@@ -216,8 +150,6 @@ async function reset(el){
 $("go").onclick = ()=>search($("q").value);
 $("q").onkeydown = e=>{ if(e.key==="Enter") search($("q").value); };
 $("mine").onclick = ()=>{ $("q").value=""; search(""); };
-$("mItems").onclick = ()=>setMode("items");
-$("mSkills").onclick = ()=>setMode("skills");
 search("");
 </script>
 </body>
