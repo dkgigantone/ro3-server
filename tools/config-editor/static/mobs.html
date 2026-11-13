@@ -83,7 +83,7 @@ tr.added td:first-child{border-left:3px solid var(--ok)}
 .filters input[type=search]{width:200px} .filters input.n{width:70px}
 .split{display:flex;gap:14px;padding:0 20px 20px;flex:1;min-height:0}
 .split .list{flex:1.4;min-width:0;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
-.split .detail{flex:1;min-width:380px;max-width:560px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px 16px}
+.split .detail{flex:1;min-width:380px;max-width:760px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px 16px}
 tr.row{cursor:pointer} tr.row:hover td{background:var(--panel2)} tr.row.sel td{background:var(--chip)}
 tr.row.edited td:first-child{border-left:3px solid var(--warn)}
 .pager{display:flex;gap:10px;align-items:center;padding:8px 12px}
@@ -95,6 +95,19 @@ tr.row.edited td:first-child{border-left:3px solid var(--warn)}
 .detail h2{margin:0 0 2px;font-size:17px} .detail h3{margin:14px 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
 .ro{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;font-size:13px} .ro span:nth-child(odd){color:var(--muted)}
 .mini th,.mini td{padding:4px 8px;font-size:13px}
+.drop{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0}
+.drop.ed{border-color:var(--warn);background:var(--edit)}
+.drop.dead{opacity:.55}
+.drop .top{display:flex;gap:8px;align-items:center}
+.drop .top .nm{flex:1;font-weight:600}
+.drop .f{display:grid;grid-template-columns:repeat(4,1fr);gap:6px 10px;margin-top:6px}
+.drop .f label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:2px}
+.drop .f input,.drop .f select{width:100%}
+.drop .eff{font-size:12px;margin-top:5px;color:var(--muted)}
+.dropbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.dropbar input{width:140px}
+.found{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;margin:4px 0;max-height:180px;overflow:auto}
+.found button{text-align:left;border:0;border-radius:0;border-bottom:1px solid var(--line)}
 .tag.mvp{background:var(--bad);color:#fff} .tag.boss{background:var(--warn);color:#fff}
 </style>
 </head>
@@ -131,7 +144,7 @@ tr.row.edited td:first-child{border-left:3px solid var(--warn)}
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
-let META = null, page = 1, total = 0, LIMIT = 100, cur = null, LAST = null;
+let DR = null, META = null, page = 1, total = 0, LIMIT = 100, cur = null, LAST = null;
 const STAT_KEYS = ["hp","sp","atk","matk","pdef","mdef","hit","flee","crit"];
 const STAT_LABEL = {hp:"HP",sp:"SP",atk:"Atk",matk:"Matk",pdef:"Pdef",mdef:"Mdef",hit:"Hit",flee:"Flee",crit:"Crit"};
 function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -172,9 +185,11 @@ async function load(){
     || '<tr><td colspan="10" class="empty">No monsters match.</td></tr>';
 }
 async function open(id){
-  cur = id; const d = await api("/api/mobs/get?id="+id); META = d.meta; renderMeta(); showDetail(d);
+  cur = id;
+  try{ const d = await api("/api/mobs/get?id="+id); META = d.meta; if(stale(META)) return; renderMeta(); showDetail(d); }catch(e){ toast("Could not show this monster: "+e.message); return; }
   document.querySelectorAll("tr.row").forEach(tr => tr.classList.toggle("sel", +tr.dataset.id===id));
 }
+function stale(m){ if(m && m.limits && m.limits.exp) return false; toast("The config editor program is older than this page. Close its window, run start.bat again, then press Ctrl+F5."); return true; }
 function showDetail(d){
   LAST = d; const m = d.mob, o = d.original, ed = new Set(m.edited);
   const num = (k,label,min,max,step) => '<label class="'+(ed.has(k)?"ed":"")+'">'+label+'<input type="number" data-k="'+k+'" value="'+m[k]+'" min="'+min+'" max="'+max+'" step="'+(step||1)+'"><span class="orig">original '+o[k]+'</span></label>';
@@ -193,19 +208,89 @@ function showDetail(d){
     + '<div style="display:flex;gap:8px;margin:8px 0"><button class="primary" id="save">Save</button><button id="reset">Back to original</button></div>'
     + '<h3>Read-only (from its skills and AI)</h3><div class="ro"><span>Attack range</span><span>'+m.attackRange+' m'+(m.ownAttack?"":" (server default, no normal attack listed)")+'</span>'
     + '<span>Attack interval (ASPD)</span><span>'+m.swingMs+' ms per swing</span><span>Skill range</span><span>'+(m.skillRange==null?"no other skills":m.skillRange+" m ("+m.skills+" skill"+(m.skills===1?"":"s")+")")+'</span><span>View range</span><span>'+m.view+' m</span><span>AI</span><span>'+m.ai+'</span></div>'
-    + '<h3>Drops (a kill rolls these; read-only for now)</h3>';
-  const dr = d.drops.items;
-  h += dr.length ? '<table class="mini"><thead><tr><th>Item</th><th>Chance</th><th>Qty</th><th>Notes</th></tr></thead><tbody>'
-    + dr.map(x => '<tr><td>'+esc(x.name||"#"+x.item)+' <span class="hint">#'+x.item+'</span></td><td>'+x.chance+'%</td><td>'+(x.min===x.max?x.min:x.min+"-"+x.max)+'</td><td class="hint">'
-      +(x.quest?"quest "+x.quest+". ":"")+(x.maps.length?"maps "+x.maps.join(",")+". ":"")+(x.levels[0]||x.levels[1]?"player level "+x.levels[0]+"-"+(x.levels[1]||"any")+". ":"")+'</td></tr>').join("")
-    + '</tbody></table><div class="hint">Chance per kill, from pool chance &times; row weight (approximate when a pool picks several). Quest rows drop only with that quest.</div>'
-    : '<div class="hint">No item drops.</div>';
-  if(d.drops.exp.length) h += '<div class="hint">Base EXP rows: '+d.drops.exp.map(x=>x.min===x.max?x.min:x.min+"-"+x.max).join(", ")+'</div>';
+    + '<h3>Item drops</h3><div id="dropsBox"></div>';
+  if(d.drops.exp.length) h += '<div class="hint">Base EXP rows: '+d.drops.exp.map(x=>x.min===x.max?x.min:x.min+"-"+x.max).join(", ")+' (edit with the Base EXP field above)</div>';
   $("detail").innerHTML = h;
   $("save").onclick = save; $("reset").onclick = resetMob;
+  DR = {list: JSON.parse(JSON.stringify(d.drops.items)), saved: d.drops.edited, level: DR && DR.id===m.id ? DR.level : "", sel: 0, id: m.id, mobLevel: m.level, dirty: false};
+  renderDrops();
   const base = document.querySelector('#detail [data-k="exp"]'), job = $("jobExp"), pct = META.jobPct;
   base.addEventListener("input", () => { job.value = Math.floor(Number(base.value||0)*pct/10000); });
   job.addEventListener("input", () => { base.value = pct>0 ? Math.ceil(Number(job.value||0)*10000/pct) : 0; job.value = Math.floor(Number(base.value)*pct/10000); });
+}
+
+function planText(plan){
+  const rows = (META.plans||{})[plan]; if(!rows) return "";
+  return rows.map(r => (r[0]===r[1]?r[0]:r[0]+" to "+r[1])+": "+(r[2]/100)+"%").join(" | ");
+}
+function ratioAt(plan, gap){
+  const rows = (META.plans||{})[plan]; if(!plan || !rows) return 10000;
+  for(const r of rows) if(gap>=r[0] && gap<=r[1]) return r[2];
+  return 10000;
+}
+function effText(e){
+  const L = Number(DR.level); if(!DR.level || Number.isNaN(L)) return "";
+  if(L < e.minLevel || (e.maxLevel && L > e.maxLevel)) return "Not dropped at player level "+L+" (needs "+e.minLevel+" to "+(e.maxLevel||"any")+").";
+  const gap = L - DR.mobLevel, ratio = ratioAt(e.plan, gap);
+  if(!e.plan) return "At player level "+L+": "+e.perKill+"% per kill, no level penalty.";
+  return "At player level "+L+" (gap "+gap+"): quantity x "+(ratio/100)+"%, so about "+(Math.round(e.perKill*ratio/100)/100)+"% per kill for a single item.";
+}
+function renderDrops(){
+  const box = $("dropsBox"); if(!box) return;
+  const plans = Object.keys(META.plans||{});
+  let h = '<div class="dropbar"><label class="hint">Check at player level <input type="number" id="dlvl" class="n" min="1" max="999" value="'+esc(DR.level)+'"></label>'
+    + '<span class="hint">'+(plans.length?"Penalty plans: "+plans.map(p=>"plan "+p+" ("+planText(p)+")").join("; "):"")+'</span></div>';
+  if(DR.sel >= DR.list.length) DR.sel = Math.max(0, DR.list.length-1);
+  if(DR.list.length){
+    h += '<div class="dropbar"><select id="dsel" style="flex:1;min-width:240px">'+DR.list.map((e,i) => '<option value="'+i+'"'+(i===DR.sel?" selected":"")+'>'+esc((e.name||("item "+e.item))+" #"+e.item+" - "+e.perKill+"% per kill, qty "+(e.min===e.max?e.min:e.min+"-"+e.max))+'</option>').join("")+'</select><span class="hint">'+DR.list.length+' drop'+(DR.list.length===1?"":"s")+'</span></div>';
+    const e = DR.list[DR.sel], i = DR.sel;
+    h += '<div class="drop'+(effText(e).startsWith("Not dropped")?" dead":"")+'" data-i="'+i+'"><div class="top"><span class="nm">'+esc(e.name||("item "+e.item))+' <span class="hint">#'+e.item+'</span></span>'
+      + '<span class="hint pk">'+e.perKill+'% per kill</span><button class="ghost" data-del="'+i+'" title="Remove this drop">Remove</button></div>'
+      + '<div class="f">'
+      + '<label>Chance % (each roll)<input type="number" data-f="chance" min="0.0001" max="100" step="0.01" value="'+e.chance+'"></label>'
+      + '<label>Rolls per kill<input type="number" data-f="rolls" min="1" max="1000" value="'+e.rolls+'"></label>'
+      + '<label>Qty min<input type="number" data-f="min" min="0" value="'+e.min+'"></label>'
+      + '<label>Qty max<input type="number" data-f="max" min="0" value="'+e.max+'"></label>'
+      + '<label>Player level from<input type="number" data-f="minLevel" min="0" max="999" value="'+e.minLevel+'"></label>'
+      + '<label>Player level to<input type="number" data-f="maxLevel" min="0" max="999" value="'+e.maxLevel+'"></label>'
+      + '<label>Level penalty plan<select data-f="plan"><option value="0"'+(e.plan?"":" selected")+'>None</option>'+plans.map(p=>'<option value="'+p+'"'+(+p===e.plan?" selected":"")+'>Plan '+p+'</option>').join("")+'</select></label>'
+      + '<label>Limits<span class="hint" style="padding-top:6px">'+(e.quest?"quest "+e.quest+". ":"")+(e.maps&&e.maps.length?"maps "+e.maps.join(",")+". ":"")+(!e.quest&&!(e.maps&&e.maps.length)?"none":"")+'</span></label>'
+      + '</div><div class="eff">'+esc(effText(e))+'</div></div>';
+  } else h += '<div class="hint">No item drops.</div>';
+  h += '<div class="dropbar"><input type="search" id="addq" placeholder="Add item: name or id"><button id="addgo">Search</button></div><div id="found"></div>'
+    + '<div style="display:flex;gap:8px;margin:8px 0"><button class="primary" id="dsave"'+(DR.dirty?"":" disabled")+'>Save drops</button><button id="dreset"'+(DR.saved||DR.dirty?"":" disabled")+'>Back to original drops</button></div>'
+    + '<div class="hint">Saving rewrites all of this monster\'s item drops as independent rolls with the chances shown here (a one-of-several group becomes separate rolls). Other monsters are not changed. Base EXP is not part of this list. The penalty plan scales the quantity by the level gap (player level minus monster level).</div>';
+  box.innerHTML = h;
+  box.querySelectorAll(".drop [data-f]").forEach(el => el.addEventListener("input", () => {
+    const e = DR.list[+el.closest(".drop").dataset.i], f = el.dataset.f, n = Number(el.value);
+    if(el.value==="" || Number.isNaN(n)) return;
+    e[f] = f==="plan" ? n : n; if(f==="chance"||f==="rolls") e.perKill = Math.round((1-Math.pow(1-e.chance/100, e.rolls))*1e6)/1e4;
+    DR.dirty = true; $("dsave").disabled = false; $("dreset").disabled = false;
+    const opt = $("dsel") && $("dsel").options[DR.sel]; if(opt) opt.textContent = (e.name||("item "+e.item))+" #"+e.item+" - "+e.perKill+"% per kill, qty "+(e.min===e.max?e.min:e.min+"-"+e.max);
+    const card = el.closest(".drop"); card.querySelector(".pk").textContent = e.perKill+"% per kill"; card.querySelector(".eff").textContent = effText(e);
+  }));
+  box.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { DR.list.splice(+b.dataset.del,1); DR.sel = Math.max(0, +b.dataset.del-1); DR.dirty = true; renderDrops(); });
+  if($("dsel")) $("dsel").onchange = () => { DR.sel = +$("dsel").value; renderDrops(); };
+  $("dlvl").addEventListener("input", () => { DR.level = $("dlvl").value; const keep = DR.list; renderDrops(); $("dlvl").focus(); });
+  $("addgo").onclick = findItems; $("addq").addEventListener("keydown", ev => { if(ev.key==="Enter") findItems(); });
+  $("dsave").onclick = saveDrops;
+  $("dreset").onclick = async () => { try{ const d = await api("/api/mobs/drops", {id:cur, drops:null}); META = d.meta; renderMeta(); showDetail(d); await load(); toast("Drops back to the original.", true);}catch(e){toast(e.message);} };
+}
+async function findItems(){
+  const q = $("addq").value.trim(); if(!q) return;
+  try{
+    const d = await api("/api/mobs/items?q="+encodeURIComponent(q));
+    $("found").innerHTML = d.items.length ? '<div class="found">'+d.items.map(x => '<button data-add="'+x.id+'" data-name="'+esc(x.name)+'">'+esc(x.name)+' <span class="hint">#'+x.id+'</span></button>').join("")+'</div>' : '<div class="hint">No item found.</div>';
+    $("found").querySelectorAll("[data-add]").forEach(b => b.onclick = () => {
+      DR.list.push({item:+b.dataset.add, name:b.dataset.name, chance:10, rolls:1, perKill:10, min:1, max:1, minLevel:0, maxLevel:999, plan:0, quest:0, maps:[], src:null});
+      DR.sel = DR.list.length-1; DR.dirty = true; renderDrops();
+    });
+  }catch(e){ toast(e.message); }
+}
+async function saveDrops(){
+  try{ const d = await api("/api/mobs/drops", {id:cur, drops:DR.list.map(({item,chance,rolls,min,max,minLevel,maxLevel,plan,quest,maps,src}) => ({item,chance,rolls,min,max,minLevel,maxLevel,plan,quest,maps,src}))});
+    META = d.meta; renderMeta(); showDetail(d); await load(); toast("Drops saved. Press Apply to game to write them.", true); }
+  catch(e){ toast(e.message); }
 }
 async function save(){
   const v = {};
@@ -231,7 +316,7 @@ let timer = null;
 ["q","lo","hi"].forEach(i => $(i).addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(()=>{ page=1; load().catch(e=>toast(e.message)); }, 250); }));
 ["cls","race","size","element","sort","desc","unnamed"].forEach(i => $(i).addEventListener("change", () => { page=1; load().catch(e=>toast(e.message)); }));
 (async () => {
-  try{ META = (await api("/api/mobs/meta")); fillSelect($("race"),"All races",META.races); fillSelect($("size"),"All sizes",META.sizes); fillSelect($("element"),"All elements",META.elements); renderMeta(); await load(); }
+  try{ META = (await api("/api/mobs/meta")); if(stale(META)) return; fillSelect($("race"),"All races",META.races); fillSelect($("size"),"All sizes",META.sizes); fillSelect($("element"),"All elements",META.elements); renderMeta(); await load(); }
   catch(e){ toast(e.message); }
 })();
 </script>

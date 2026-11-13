@@ -405,6 +405,9 @@ class Handler(BaseHTTPRequestHandler):
                                                 int(q.get("race", -1)), int(q.get("size", -1)), int(q.get("element", -1)),
                                                 q.get("sort", "level"), q.get("desc") == "1", int(q.get("page") or 1), int(q.get("limit") or 100),
                                                 q.get("unnamed") == "1"))
+            if path == "/api/mobs/items":
+                from urllib.parse import parse_qs
+                return self.ok(self.mobs.item_search((parse_qs(urlparse(self.path).query).get("q") or [""])[0]))
             if path == "/api/mobs/get":
                 from urllib.parse import parse_qs
                 return self.ok(self.mobs.get(int((parse_qs(urlparse(self.path).query).get("id") or ["0"])[0])))
@@ -510,6 +513,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.ok(self.items.meta())
             if path == "/api/mobs/set":
                 return self.ok(self.mobs.set_fields(body["id"], body["values"]))
+            if path == "/api/mobs/drops":
+                return self.ok(self.mobs.set_drops(body["id"], body.get("drops")))
             if path == "/api/mobs/reset":
                 return self.ok(self.mobs.reset_mob(body["id"]))
             if path == "/api/mobs/reset-all":
