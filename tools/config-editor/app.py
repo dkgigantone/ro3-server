@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 from common import APP_DIR, LOCK, STATE_DIR, atomic_write, client_dir, compact, read_json, server_running, set_client_dir, sha256
 from items import ItemsEditor
 from mobs import MobsEditor
+from spawns import SpawnEditor
 from shops import ShopsEditor
 from texts import TextsEditor
 
@@ -350,6 +351,7 @@ class Handler(BaseHTTPRequestHandler):
     shops: ShopsEditor = None
     texts: TextsEditor = None
     mobs: MobsEditor = None
+    spawns: SpawnEditor = None
 
     def log_message(self, *a):
         pass
@@ -408,6 +410,11 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/mobs/items":
                 from urllib.parse import parse_qs
                 return self.ok(self.mobs.item_search((parse_qs(urlparse(self.path).query).get("q") or [""])[0]))
+            if path == "/api/spawns/meta":
+                return self.ok(self.spawns.meta())
+            if path == "/api/spawns/get":
+                from urllib.parse import parse_qs
+                return self.ok(self.spawns.get(int((parse_qs(urlparse(self.path).query).get("id") or ["0"])[0])))
             if path == "/api/mobs/get":
                 from urllib.parse import parse_qs
                 return self.ok(self.mobs.get(int((parse_qs(urlparse(self.path).query).get("id") or ["0"])[0])))
@@ -523,6 +530,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self.ok(self.mobs.apply())
             if path == "/api/mobs/restore-original":
                 return self.ok(self.mobs.restore_original())
+            if path == "/api/spawns/set":
+                return self.ok(self.spawns.set_spawns(body["id"], body.get("pools") or [], body.get("fixed") or []))
+            if path == "/api/spawns/reset":
+                return self.ok(self.spawns.reset_npc(body["id"]))
+            if path == "/api/spawns/reset-all":
+                return self.ok(self.spawns.reset_all())
+            if path == "/api/spawns/apply":
+                return self.ok(self.spawns.apply())
+            if path == "/api/spawns/restore-original":
+                return self.ok(self.spawns.restore_original())
+            if path == "/api/spawns/rebaseline":
+                self.spawns.rebaseline()
+                return self.ok(self.spawns.meta())
             if path == "/api/mobs/rebaseline":
                 self.mobs.rebaseline()
                 return self.ok(self.mobs.meta())
@@ -535,6 +555,7 @@ class Handler(BaseHTTPRequestHandler):
                 Handler.shops = ShopsEditor(home)
                 Handler.texts = TextsEditor(home)
                 Handler.mobs = MobsEditor(home)
+                Handler.spawns = SpawnEditor(home)
                 STATE_DIR.mkdir(parents=True, exist_ok=True)
                 atomic_write(SETTINGS, json.dumps({"home": str(home)}))
                 return self.ok(new.meta())
@@ -568,6 +589,7 @@ def main():
     Handler.shops = ShopsEditor(Handler.editor.home)
     Handler.texts = TextsEditor(Handler.editor.home)
     Handler.mobs = MobsEditor(Handler.editor.home)
+    Handler.spawns = SpawnEditor(Handler.editor.home)
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     url = f"http://127.0.0.1:{args.port}/"
     print(f"RO3 Plus Config Editor\n  game folder: {Handler.editor.home}\n  open: {url}\n  (close this window to stop)")
