@@ -17,6 +17,9 @@ How a list of steps is read (the same rule rAthena uses, LIKELY for rAthena, CON
   * Difference below 0 (monster weaker): a step holds from its Difference down to the next lower step. Between -1 and the
     first negative step the rate is 100.
   * The last step on each side holds for every level beyond it.
+A new drop plan can be created on the Drop tab ("New plan"). It gets the next free plan id, is written as new rows of
+DropAttenuationConfig on Apply, and a drop row only uses it once its plan is set to that id on the Mobs page. The server
+groups the rows by _iPlanID with no fixed list of plan ids (DropAttenuation.Build, CONFIRMED), so no server change is needed.
 Your edits live in overrides/levelpenalty.json. "Apply" rewrites the config table you edited (untouched original + your
 steps, with a backup first). The server reads the tables at start, so restart it. Nothing here reaches the client.
 Standard library only.
@@ -36,6 +39,7 @@ EXP_RANGE = (-200, 200)       # the Difference span of the EXP table (the server
 DROP_RANGE = (-999, 999)      # the span the original drop plans cover
 RATE_MAX = 1000.0             # percent
 MAX_STEPS = 400
+MAX_PLAN_ID = 9999            # highest plan id the page will create
 
 
 def _num(v, default=0):
@@ -302,11 +306,13 @@ class LevelPenaltyEditor:
             plans = self._drop_plans(self.orig["Drop"])
             use = self._plan_usage()
             drop = {}
-            for p in sorted(plans):
-                o = derive_steps(self._plan_rates(plans[p]))
+            new_ids = {int(k) for k in ov["Drop"]} - set(plans)          # plans created on this page, not in the original table
+            for p in sorted(set(plans) | new_ids):
+                is_new = p in new_ids
+                o = [] if is_new else derive_steps(self._plan_rates(plans[p]))
                 cur = ov["Drop"].get(str(p))
                 drop[str(p)] = {"original": _steps_json(o), "steps": _steps_json(cur if cur is not None else o), "edited": cur is not None,
-                                "usedBy": use.get(p, [])}
+                                "new": is_new, "usedBy": use.get(p, [])}
             return {"exp": {"original": _steps_json(exp_orig),
                             "steps": _steps_json(ov["Exp"] if ov["Exp"] is not None else exp_orig),
                             "edited": ov["Exp"] is not None, "range": list(EXP_RANGE)},
@@ -353,14 +359,18 @@ class LevelPenaltyEditor:
                     pid = int(plan)
                 except (TypeError, ValueError):
                     raise ValueError("Pick a plan.")
-                if pid not in plans:
-                    raise ValueError(f"Plan {pid} does not exist. Only the existing plans can be edited.")
                 new = clean_steps(steps, *DROP_RANGE)
-                orig = derive_steps(self._plan_rates(plans[pid]))
-                if new == [(d, float(r)) for d, r in orig]:
-                    ov["Drop"].pop(str(pid), None)
-                else:
+                if pid not in plans:
+                    # a plan the original table does not have: it is created (or, if already created here, edited)
+                    if pid < 1 or pid > MAX_PLAN_ID:
+                        raise ValueError(f"A new plan id must be between 1 and {MAX_PLAN_ID}.")
                     ov["Drop"][str(pid)] = new
+                else:
+                    orig = derive_steps(self._plan_rates(plans[pid]))
+                    if new == [(d, float(r)) for d, r in orig]:
+                        ov["Drop"].pop(str(pid), None)
+                    else:
+                        ov["Drop"][str(pid)] = new
             else:
                 raise ValueError("Unknown table.")
             self.save_overrides(ov)
@@ -395,9 +405,32 @@ class LevelPenaltyEditor:
             rows.append(n)
         return rows
 
+    def _plan_rows(self, pid, steps, ids, top):
+        """The rows of one plan: one row per run of equal rate, in gap order. Row ids come from ids first, then above top.
+        Returns (rows, new top)."""
+        runs = []
+        for gap in range(DROP_RANGE[0], DROP_RANGE[1] + 1):       # gap order, low to high
+            raw = _pct_to_raw(rate_at(steps, -gap))
+            if runs and runs[-1][2] == raw:
+                runs[-1][1] = gap
+            else:
+                runs.append([gap, gap, raw])
+        out = []
+        for lo, hi, raw in runs:
+            if ids:
+                rid = ids.pop(0)
+            else:
+                top += 1
+                rid = top
+            # the original files name the two limits the other way round: Lowerlimit is the higher gap
+            out.append({"_iAttenuationRatio": raw, "_iID": rid, "_iPlanID": pid,
+                        "_kLvDiffLowerlimit": [hi], "_kLvDiffUpLimit": [lo]})
+        return out, top
+
     def build_drop(self, edits):
         """Original rows of untouched plans stay as they are. An edited plan is rebuilt as one row per run of equal rate,
-        in gap order, reusing the plan's old row ids first (then new ids above the table's highest)."""
+        in gap order, reusing the plan's old row ids first (then new ids above the table's highest). A plan that is not in
+        the original table is added at the end the same way."""
         rows = [dict(r) for r in self.orig["Drop"]]
         top = max([int(_num(r.get("_iID"))) for r in rows] or [0])
         out = []
@@ -411,24 +444,13 @@ class LevelPenaltyEditor:
                 continue
             done.add(pid)
             ids = [int(_num(x.get("_iID"))) for x in rows if int(_num(x.get("_iPlanID"))) == pid]
-            runs = []
-            for gap in range(DROP_RANGE[0], DROP_RANGE[1] + 1):       # gap order, low to high
-                pct = rate_at(edits[str(pid)], -gap)
-                raw = _pct_to_raw(pct)
-                if runs and runs[-1][2] == raw:
-                    runs[-1][1] = gap
-                else:
-                    runs.append([gap, gap, raw])
-            for lo, hi, raw in runs:
-                if ids:
-                    rid = ids.pop(0)
-                else:
-                    top += 1
-                    rid = top
-                # the original files name the two limits the other way round: Lowerlimit is the higher gap
-                out.append({"_iAttenuationRatio": raw, "_iID": rid, "_iPlanID": pid,
-                            "_kLvDiffLowerlimit": [hi], "_kLvDiffUpLimit": [lo]})
+            new_rows, top = self._plan_rows(pid, edits[str(pid)], ids, top)
+            out.extend(new_rows)
             # ids left over (the plan got fewer rows) are simply not used any more
+        for key in sorted(edits, key=int):                          # plans created on this page
+            if int(key) not in done:
+                new_rows, top = self._plan_rows(int(key), edits[key], [], top)
+                out.extend(new_rows)
         return out
 
     # ------------------------------------------------------------ apply

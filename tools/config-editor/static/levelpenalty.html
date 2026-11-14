@@ -149,8 +149,8 @@ function render(){
     h += '<p class="intro"><b>EXP by level difference.</b> <b>Difference</b> = monster level minus your level (+10 means the monster is 10 levels higher, -10 means 10 levels lower). <b>Rate</b> = percent of the normal EXP: 100 is full, 0 is nothing, above 100 is bonus EXP. Job EXP follows Base EXP. Levels between the steps, and before the first step on each side, get 100.</p>';
   } else {
     const u = D.drop[plan].usedBy || [];
-    h += '<p class="intro"><b>Drop count by level difference.</b> A drop row that chooses a plan has its item count scaled by the plan\'s rate, using the same Difference as the EXP page (monster level minus your level). Drops that choose no plan are never reduced. Only the existing plans can be edited. Pick the plan for a drop on the Mobs page.</p>';
-    h += '<div class="planbar"><b>Plan</b> <select id="plan">' + Object.keys(D.drop).map(p => '<option value="'+p+'"'+(p===plan?" selected":"")+'>Plan '+p+(D.drop[p].edited||dirtyPlan(p)?" (edited)":"")+'</option>').join("") + '</select>' +
+    h += '<p class="intro"><b>Drop count by level difference.</b> A drop row that chooses a plan has its item count scaled by the plan\'s rate, using the same Difference as the EXP page (monster level minus your level). Drops that choose no plan are never reduced. Use <b>New plan</b> to create another plan. Pick the plan for a drop on the Mobs page.</p>';
+    h += '<div class="planbar"><b>Plan</b> <select id="plan">' + Object.keys(D.drop).map(p => '<option value="'+p+'"'+(p===plan?" selected":"")+'>Plan '+p+(D.drop[p].new?" (new)":D.drop[p].edited||dirtyPlan(p)?" (edited)":"")+'</option>').join("") + '</select> <button id="newPlan">New plan</button>' + (D.drop[plan].new ? ' <button id="delPlan" title="Remove this new plan from your saved edits">Delete this new plan</button>' : "") +
          '<span class="hint">' + (u.length ? 'Used by '+u.length+' drop row'+(u.length===1?"":"s")+' (DropGroupConfig id'+(u.length===1?"":"s")+' '+u.slice(0,12).join(", ")+(u.length>12?", ...":"")+')' : 'No drop row uses this plan right now.') + '</span></div>';
   }
   h += '<div class="cols"><div class="col"><h3>Steps (what you edit)</h3><table><thead><tr><th>Difference</th><th>Rate %</th><th></th></tr></thead><tbody>';
@@ -162,7 +162,7 @@ function render(){
   });
   h += '</tbody></table>';
   h += '<div class="addbar">Difference <input id="addD" type="number" step="1" placeholder="e.g. 10"> Rate % <input id="addR" type="number" step="any" min="0" placeholder="e.g. 140"> <button id="add">Add step</button></div>';
-  h += '<div class="btns"><button class="primary" id="save"'+((exp?dirtyExp():dirtyPlan(plan))?"":" disabled")+'>Save '+(exp?"EXP table":"plan "+plan)+'</button><button id="undo"'+((exp?dirtyExp():dirtyPlan(plan))?"":" disabled")+'>Undo unsaved changes</button><button id="orig"'+(same(cur(), o)?" disabled":"")+'>Back to original steps</button></div>';
+  h += '<div class="btns"><button class="primary" id="save"'+((exp?dirtyExp():dirtyPlan(plan))?"":" disabled")+'>Save '+(exp?"EXP table":"plan "+plan)+'</button><button id="undo"'+((exp?dirtyExp():dirtyPlan(plan))?"":" disabled")+'>Undo unsaved changes</button><button id="orig"'+(same(cur(), o)?" disabled":"")+'>'+(!exp&&D.drop[plan].new?"Clear all steps":"Back to original steps")+'</button></div>';
   h += '<div class="hint" style="margin-top:6px">'+((exp?dirtyExp():dirtyPlan(plan))?'<span class="unsaved">Unsaved changes.</span> ':"")+'Save keeps your steps in overrides/levelpenalty.json. Apply to game (top right) writes them into the game tables.</div>';
   h += '<div class="check"><b>Check one case</b><div class="row">Your level <input id="cp" type="number" min="1" max="999" value="'+(check.p)+'"> Monster level <input id="cm" type="number" min="1" max="999" value="'+(check.m)+'"> <button id="go">Check</button></div><div class="out" id="out"></div></div>';
   h += '</div><div class="col"><h3>What this gives (checked by the server code rules)</h3><table><thead><tr><th>Difference</th><th>Monster is</th><th>Rate %</th><th></th></tr></thead><tbody id="pv"><tr><td colspan="4" class="hint">...</td></tr></tbody></table></div></div>';
@@ -174,6 +174,8 @@ const check = {p: 100, m: 110};
 
 function wire(){
   if($("plan")) $("plan").onchange = e => { plan = e.target.value; render(); };
+  if($("newPlan")) $("newPlan").onclick = newPlan;
+  if($("delPlan")) $("delPlan").onclick = delPlan;
   $("card").querySelectorAll("input[data-i]").forEach(inp => inp.onchange = () => {
     const rows = sort(cur()); const i = +inp.dataset.i; const v = inp.value === "" ? NaN : Number(inp.value);
     if(!Number.isFinite(v)){ toast("Type a number."); render(); return; }
@@ -194,6 +196,23 @@ function wire(){
   $("go").onclick = runCheck;
   ["cp", "cm"].forEach(id => $(id).onkeydown = e => { if(e.key === "Enter") runCheck(); });
   runCheck(true);
+}
+async function newPlan(){
+  const next = Math.max(0, ...Object.keys(D.drop).map(Number)) + 1;
+  const copy = confirm("Create plan " + next + " as a copy of plan " + plan + "?\n\nOK = start from a copy of plan " + plan + ".\nCancel = start with no steps (100% everywhere).");
+  const steps = copy ? JSON.parse(JSON.stringify(W.drop[plan])) : [];
+  try{
+    D = await api("/api/levelpenalty/set", {kind: "drop", plan: next, steps: steps});
+    META = D.meta; plan = String(next); syncW(); render();
+    toast("Plan " + next + " created. Edit its steps, Save, then Apply to game and restart the server.", true);
+  }catch(e){ toast(e.message); }
+}
+async function delPlan(){
+  if(!confirm("Delete the new plan " + plan + " from your saved edits? Drops that use it will then have no matching plan after the next Apply.")) return;
+  try{
+    D = await api("/api/levelpenalty/reset", {kind: "drop", plan: plan});
+    META = D.meta; syncW(); plan = Object.keys(D.drop)[0] || null; render(); toast("Plan deleted from your edits.", true);
+  }catch(e){ toast(e.message); }
 }
 function setCur(rows){ if(tab === "exp") W.exp = rows; else W.drop[plan] = rows; }
 
