@@ -140,7 +140,7 @@ public sealed partial class SkillService
     }
 
     /// <summary>SkillConfig._iInitialLevel of a group: the level a skill has for free, whatever the character's job.</summary>
-    private int FreeLevel(int group) => _data.Row("SkillConfig", RealId(group, 1)) is { } row ? (int)GameData.Int(row, "_iInitialLevel") : 0;
+    private int FreeLevel(int group) => SkillConfig.Get(_data, RealId(group, 1)) is { } row ? (int)row.InitialLevel : 0;
 
     private int Initial(RoleProgress p, int group)
     {
@@ -1093,8 +1093,8 @@ public sealed partial class SkillService
             selected.SkillGenre = req.Genre;
             await CommitAsync(session, plans, kind: "cd13c/skill-genre");
             await SyncAsync(session);
-            if (changed && _data.Row("JobProfessConfig", req.Genre) is { } build)
-                profession = GameData.Int(build, "_iProfessionID");
+            if (changed && JobProfessConfig.Get(_data, req.Genre) is { } build)
+                profession = build.ProfessionId;
         }
         await session.SendGameAsync(SwitchGenre, new SkillSwitchGenreResp { Result = code });
         if (profession > 0) await GmProfessionSkillsAsync(session, profession, fitPoints: true);
