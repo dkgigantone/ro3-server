@@ -1,23 +1,21 @@
 name: Client-independent .NET checks
 
+# Started by hand only: Actions tab > this workflow > Run workflow. It does not start for a pull request or a push, so
+# about 6 changes can be merged first and checked together once. Tick "Also run on Windows" to add the Windows build below.
 on:
-  push:
-    branches: [main]
-    # tools/config-editor is Python and HTML: none of these checks look at it (docs/ is not skipped, tests read it).
-    paths-ignore:
-      - 'tools/config-editor/**'
-  pull_request:
-    paths-ignore:
-      - 'tools/config-editor/**'
-  # Start it by hand from the Actions page (Run workflow) to include the Windows build below.
   workflow_dispatch:
+    inputs:
+      windows:
+        description: Also run on Windows
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 env:
   DOTNET_NOLOGO: true
@@ -73,11 +71,11 @@ jobs:
 
   # The server, the setup tool and the patcher are built and tested on Linux and Windows by tests.yml; this job
   # builds what no test project references.
-  # Windows minutes cost more than Linux ones: this job only runs when started by hand (before a release, or after a
-  # change to the launcher or the export tools).
+  # Windows minutes cost more than Linux ones: this job only runs when "Also run on Windows" is ticked (before a
+  # release, or after a change to the launcher or the export tools).
   build:
     name: Export tools and launcher build
-    if: github.event_name == 'workflow_dispatch'
+    if: inputs.windows
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
