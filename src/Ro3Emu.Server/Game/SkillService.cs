@@ -177,6 +177,14 @@ public sealed partial class SkillService
         return points;
     }
 
+    /// <summary>The points each rank has earned, with no skill learned.</summary>
+    private Dictionary<int, int> EarnedPoints(RoleProgress p)
+    {
+        var none = CharacterService.GenreCloneProgress(p);
+        none.Skills.Clear();
+        return SkillPoints(none);
+    }
+
     /// <summary>The points each rank would have left with a plan's levels.</summary>
     private Dictionary<int, int> PlanPoints(RoleProgress p, SkillPlan plan)
     {
@@ -1066,18 +1074,30 @@ public sealed partial class SkillService
         if (changed) await OnActivePlanChangedAsync(session);
     }
 
+    /// <summary>
+    /// 31160 picks the plan's build (genre). (inferred) The game's own Apply Points Allocation only clears the plan and never
+    /// sends the second request that spends the points, so choosing a different build also gives the plan that build's
+    /// recommended skills: JobProfessConfig[genre]._iProfessionID names the JobProfessSkillConfig list, as GM 170 reads it.
+    /// A genre with no JobProfessConfig row, or the build the plan already has, leaves the skills alone.
+    /// </summary>
     public async Task SwitchGenreAsync(GameSession session, SkillSwitchGenreReq req)
     {
-        using var held = await CharacterService.Lock(session);
         int code = req.Genre < 0 ? ErrorCodes.Parameter : 0; // (inferred) exact genre enumeration is not exported.
+        long profession = 0;
         if (code == 0)
         {
+            using var held = await CharacterService.Lock(session);
             var plans = Build(session);
-            plans.SkillAssignPlans[plans.CurrentPlanIndex].SkillGenre = req.Genre;
+            var selected = plans.SkillAssignPlans[plans.CurrentPlanIndex];
+            bool changed = selected.SkillGenre != req.Genre;
+            selected.SkillGenre = req.Genre;
             await CommitAsync(session, plans, kind: "cd13c/skill-genre");
             await SyncAsync(session);
+            if (changed && _data.Row("JobProfessConfig", req.Genre) is { } build)
+                profession = GameData.Int(build, "_iProfessionID");
         }
         await session.SendGameAsync(SwitchGenre, new SkillSwitchGenreResp { Result = code });
+        if (profession > 0) await GmProfessionSkillsAsync(session, profession, fitPoints: true);
     }
 
     public async Task QueueUpdateAsync(GameSession session, SkillQueueUpdateReq req)

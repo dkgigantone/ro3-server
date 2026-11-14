@@ -409,6 +409,43 @@ public sealed class SkillGrowthTests : IAsyncLifetime
     }
 
     [ClientDataFact]
+    public async Task ChoosingABuildGivesThePlanItsRecommendedSkills()
+    {
+        await using var alice = await InWorld("Alice");
+        await Next(alice, SkillService.SkillDataSync, DBSkillDataIncrement.Parser);
+        await Gm("alice", "!job 1100");
+        await Next(alice, SkillService.SkillDataSync, DBSkillDataIncrement.Parser,
+            m => !m.SyncAllMark && m.CurrentAtkSkillId == 1001001);
+        // Genre 111 is JobProfessConfig 111 (profession 101); its Swordman build lists Bash (11001) at a level that depends on the job level.
+        await alice.SendGameAsync(SkillService.SwitchGenre, new SkillSwitchGenreReq { Genre = 111 });
+        Assert.Equal(0, (await Next(alice, SkillService.SwitchGenre, SkillSwitchGenreResp.Parser)).Result);
+        var applied = await Next(alice, SkillService.SkillDataSync, DBSkillDataIncrement.Parser,
+            m => !m.SyncAllMark && m.SkillAssignPlans?.Inc?.Value[0].SkillAssigns.ContainsKey(11001) == true);
+        Assert.True(applied.SkillAssignPlans.Inc.Value[0].SkillAssigns[11001].Inc.SkillLevel > 0);
+    }
+
+    [ClientDataFact]
+    public async Task ABuildOnePointOverTheJobLevelCutsASkillNothingNeeds()
+    {
+        const int Cut = 13312, Kept = 13310;
+        await using var alice = await InWorld("Alice");
+        await Next(alice, SkillService.SkillDataSync, DBSkillDataIncrement.Parser);
+        await Gm("alice", "!job 3400");
+        await Next(alice, SkillService.SkillDataSync, DBSkillDataIncrement.Parser,
+            m => !m.SyncAllMark && m.SkillList.All.Value.Contains(Kept));
+        // A Ranger at job level 31: genre 305's build (profession 303) costs one point more than the rank has earned. Its last
+        // skill (13310) is what 13309 and 13312 need, so the point comes off 13312 (3 -> 2) and the build is not refused whole.
+        Session(alice).Progress!.JobLevel = 31;
+        await alice.SendGameAsync(SkillService.SwitchGenre, new SkillSwitchGenreReq { Genre = 305 });
+        Assert.Equal(0, (await Next(alice, SkillService.SwitchGenre, SkillSwitchGenreResp.Parser)).Result);
+        var applied = await Next(alice, SkillService.SkillDataSync, DBSkillDataIncrement.Parser,
+            m => !m.SyncAllMark && m.SkillAssignPlans?.Inc?.Value[0].SkillAssigns.ContainsKey(Cut) == true);
+        var plan = applied.SkillAssignPlans.Inc.Value[0].SkillAssigns;
+        Assert.Equal(2, plan[Cut].Inc.SkillLevel);
+        Assert.Equal(1, plan[Kept].Inc.SkillLevel);
+    }
+
+    [ClientDataFact]
     public async Task PlansNameGenreAndSelectedLevelsSurviveRelog()
     {
         await using (var alice = await InWorld("Alice"))
