@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 from common import APP_DIR, LOCK, STATE_DIR, atomic_write, client_dir, compact, read_json, server_running, set_client_dir, sha256
 from items import ItemsEditor
 from levelpenalty import LevelPenaltyEditor
+from stalls import StallsEditor
 from mobs import MobsEditor
 from spawns import SpawnEditor
 from shops import ShopsEditor
@@ -354,6 +355,7 @@ class Handler(BaseHTTPRequestHandler):
     mobs: MobsEditor = None
     spawns: SpawnEditor = None
     levelpenalty: LevelPenaltyEditor = None
+    stalls: StallsEditor = None
 
     def log_message(self, *a):
         pass
@@ -402,6 +404,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, (STATIC / "mobs.html").read_bytes(), "text/html")
             if path == "/levelpenalty":
                 return self.send(200, (STATIC / "levelpenalty.html").read_bytes(), "text/html")
+            if path == "/stalls":
+                return self.send(200, (STATIC / "stalls.html").read_bytes(), "text/html")
+            if path == "/api/stalls/get":
+                return self.ok(self.stalls.get())
             if path == "/api/levelpenalty/get":
                 return self.ok(self.levelpenalty.get())
             if path == "/api/mobs/meta":
@@ -569,6 +575,24 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/levelpenalty/rebaseline":
                 self.levelpenalty.rebaseline()
                 return self.ok(self.levelpenalty.meta())
+            if path == "/api/stalls/set-many":
+                return self.ok(self.stalls.set_many(body.get("items")))
+            if path == "/api/stalls/add-item":
+                return self.ok(self.stalls.add_item(body.get("id"), body.get("currency"), body.get("base"), body.get("min"),
+                                                    body.get("max"), body.get("unlimited"), body.get("limit")))
+            if path == "/api/stalls/remove-added":
+                return self.ok(self.stalls.remove_added(body.get("id")))
+            if path == "/api/stalls/item-info":
+                return self.ok(self.stalls.item_info(body.get("id")))
+            if path == "/api/stalls/reset-all":
+                return self.ok(self.stalls.reset_all())
+            if path == "/api/stalls/apply":
+                return self.ok(self.stalls.apply())
+            if path == "/api/stalls/restore-original":
+                return self.ok(self.stalls.restore_original())
+            if path == "/api/stalls/rebaseline":
+                self.stalls.rebaseline()
+                return self.ok(self.stalls.meta())
             if path == "/api/set-home":
                 home = Path(body["home"])
                 new = Editor(home)
@@ -580,6 +604,7 @@ class Handler(BaseHTTPRequestHandler):
                 Handler.mobs = MobsEditor(home)
                 Handler.spawns = SpawnEditor(home)
                 Handler.levelpenalty = LevelPenaltyEditor(home)
+                Handler.stalls = StallsEditor(home)
                 STATE_DIR.mkdir(parents=True, exist_ok=True)
                 atomic_write(SETTINGS, json.dumps({"home": str(home)}))
                 return self.ok(new.meta())
@@ -615,6 +640,7 @@ def main():
     Handler.mobs = MobsEditor(Handler.editor.home)
     Handler.spawns = SpawnEditor(Handler.editor.home)
     Handler.levelpenalty = LevelPenaltyEditor(Handler.editor.home)
+    Handler.stalls = StallsEditor(Handler.editor.home)
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     url = f"http://127.0.0.1:{args.port}/"
     print(f"RO3 Plus Config Editor\n  game folder: {Handler.editor.home}\n  open: {url}\n  (close this window to stop)")

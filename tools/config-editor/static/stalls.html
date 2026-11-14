@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RO3 Plus - Stall Prices</title>
+<style>
+:root{
+  --bg:#f4f6fa; --panel:#ffffff; --panel2:#f0f3f8; --line:#dfe5ee; --text:#1b2433; --muted:#6a778c;
+  --accent:#3b6df0; --accent-d:#2c55c7; --ok:#18a56b; --warn:#c98a0b; --bad:#d6404f; --chip:#e8eefc; --edit:#fff6dc;
+  --shadow:0 1px 2px rgba(20,30,50,.06),0 4px 14px rgba(20,30,50,.06);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0e1420; --panel:#151d2c; --panel2:#1b2638; --line:#27344b; --text:#e6ecf6; --muted:#8c9bb3;
+  --accent:#6b93ff; --accent-d:#5a82f0; --ok:#3ccf91; --warn:#f0b64a; --bad:#ff7380; --chip:#22314f; --edit:#3a3216;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:7px 14px;border-radius:8px}
+button:hover{background:var(--panel2)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{background:var(--accent-d)}
+button.primary:disabled{opacity:.5;cursor:default}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--text);background:var(--panel2)}
+input,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+header .path{color:var(--muted);font-size:12px;max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header .spacer{flex:1}
+nav.top{display:flex;gap:4px;background:var(--panel2);padding:3px;border-radius:10px}
+nav.top a{padding:5px 14px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:600}
+nav.top a.on{background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+.pill{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)}
+details.more{position:relative}
+details.more summary{list-style:none;cursor:pointer;padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+details.more summary::-webkit-details-marker{display:none}
+details.more .menu{position:absolute;right:0;top:110%;z-index:5;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;display:grid;gap:4px;min-width:260px}
+details.more .menu button{text-align:left;border-color:transparent}
+.banner{margin:12px 20px 0;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.banner.warn{border-color:var(--warn)} .banner.bad{border-color:var(--bad)} .banner.ok{border-color:var(--ok)}
+.banner .grow{flex:1}
+.tabs{display:flex;gap:2px;padding:10px 20px 0;flex-wrap:wrap}
+.tabs .tab{padding:8px 18px;border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;background:var(--panel2);color:var(--muted);font-weight:600;cursor:pointer}
+.tabs .tab.on{background:var(--panel);color:var(--text)}
+.tabs .tab small{font-weight:400;margin-left:6px}
+.hint{color:var(--muted);font-size:12px}
+main{flex:1;overflow:auto;padding:0 20px 20px;min-height:0}
+.card{background:var(--panel);border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;box-shadow:var(--shadow);padding:16px 18px}
+.intro{margin:0 0 12px;color:var(--muted)}
+.intro b{color:var(--text)}
+.filterbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+.planbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.cols{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+.col{flex:1;min-width:340px}
+.col h3{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+table{border-collapse:collapse;width:100%}
+th,td{padding:5px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{background:var(--panel2);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+td input{width:90px;text-align:right}
+tr.ed td input{background:var(--edit);border-color:var(--warn)}
+.addbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.addbar input{width:90px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.bar{display:inline-block;height:8px;border-radius:4px;background:var(--accent);vertical-align:middle;min-width:1px}
+.bar.bonus{background:var(--ok)} .bar.zero{background:var(--bad)}
+td.rate{font-variant-numeric:tabular-nums}
+.check{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:14px}
+.check .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.check input{width:90px}
+.check .out{margin-top:6px;font-weight:600}
+.unsaved{color:var(--warn);font-weight:600}
+.err{color:var(--bad)}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;padding:9px 16px;border-radius:10px;box-shadow:var(--shadow);display:none;z-index:30;max-width:80vw}
+.toast.ok{background:var(--ok)}
+
+.tablewrap{max-height:62vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.tablewrap thead th{position:sticky;top:0;z-index:1}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+td input.pct{width:76px} td input.price{width:110px} td input.lim{width:70px}
+td.name{white-space:normal;min-width:170px}
+tr.ed td{background:var(--edit)} tr.added td{background:var(--chip)}
+tr.ed td input{border-color:var(--warn)}
+.bulk{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 12px}
+.bulk .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bulk input.pct{width:76px}
+.over{color:var(--bad);font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>RO3 Plus Config Editor</h1>
+  <nav class="top"><a href="/">Skills</a><a href="/items">Items</a><a href="/shops">Shops</a><a href="/texts">Descriptions</a><a href="/mobs">Mobs</a><a href="/levelpenalty">Level penalty</a><a href="/stalls" class="on">Stall prices</a></nav>
+  <span class="path" id="home"></span>
+  <span class="pill" id="pill">...</span>
+  <span class="spacer"></span>
+  <button class="primary" id="btnApply" disabled>Apply to game</button>
+  <details class="more"><summary>More</summary><div class="menu">
+    <button id="btnRestore">Put the untouched original back</button>
+    <button id="btnDiscard">Discard all my edits</button>
+    <button id="btnRebase">Use current file as new original</button>
+  </div></details>
+</header>
+<div id="banner"></div>
+<main><div class="card" id="card" style="border-top:1px solid var(--line);border-radius:14px;margin-top:12px"></div></main>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let D = null, META = null;
+let W = {};                        // item id -> what is on screen {base, min, max, unlimited, limit}
+let filter = "", onlyEdited = false, SHOWN = [];
+const UNL = 10000;                 // percent that means "unlimited" (100 x the base price)
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function toast(msg, ok){ const t=$("toast"); t.textContent=msg; t.className="toast"+(ok?" ok":""); t.style.display="block"; clearTimeout(toast.h); toast.h=setTimeout(()=>t.style.display="none", ok?9000:7000); }
+async function api(path, body){
+  const r = await fetch(path, body===undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  const t = await r.text(); let j; try{ j=JSON.parse(t);}catch(e){ j=null; }
+  if(!r.ok) throw new Error((j&&j.error)||t||("HTTP "+r.status));
+  return j ?? t;
+}
+const fmtN = n => Number(n).toLocaleString("en-US");
+const priceAt = (base, pct) => Math.floor((base * (pct / 10) + 5) / 10);
+const cur = id => (D.currencies[id] || ("currency " + id));
+function fromRow(r){ return {base: r.base, min: r.min, max: r.unlimited ? UNL : r.max, unlimited: r.unlimited, limit: r.limit}; }
+function syncW(){ W = {}; D.rows.forEach(r => W[r.id] = fromRow(r)); }
+const sameRow = (a, b) => a.base === b.base && a.min === b.min && a.unlimited === b.unlimited && (a.unlimited || a.max === b.max) && a.limit === b.limit;
+function dirtyIds(){ return D.rows.filter(r => !sameRow(W[r.id], fromRow(r))).map(r => r.id); }
+function dirty(){ return !!D && dirtyIds().length > 0; }
+
+function renderMeta(){
+  const m = META; $("home").textContent = m.home;
+  const p = $("pill");
+  if(m.fileStatus==="external"){ p.textContent="file changed outside"; p.className="pill warn"; }
+  else if(m.changed===0 && m.fileStatus==="pristine"){ p.textContent="original"; p.className="pill ok"; }
+  else if(m.inSync){ p.textContent="applied"; p.className="pill ok"; }
+  else { p.textContent=m.changed+" item"+(m.changed===1?"":"s")+" edited, not applied"; p.className="pill warn"; }
+  $("btnApply").disabled = m.fileStatus==="external" || (m.inSync && !dirty()) || (m.changed===0 && m.fileStatus==="pristine" && !dirty());
+  let b = "";
+  if(m.fileStatus==="external") b = '<div class="banner bad"><span class="grow">TradeConfig changed outside this tool. Use More &gt; Use current file as new original before applying.</span></div>';
+  else if(m.serverRunning) b = '<div class="banner warn"><span class="grow">The server is running. It reads this table at start-up: apply, then restart it.</span></div>';
+  $("banner").innerHTML = b;
+}
+
+function visible(){
+  const q = filter.trim().toLowerCase();
+  return D.rows.filter(r => (!onlyEdited || r.edited || r.added || !sameRow(W[r.id], fromRow(r))) &&
+    (!q || String(r.id).includes(q) || (r.name || "").toLowerCase().includes(q)));
+}
+function rowHtml(r){
+  const w = W[r.id], ed = !sameRow(w, fromRow(r)) || r.edited;
+  return '<tr data-id="'+r.id+'" class="'+(r.added?"added":ed?"ed":"")+'"><td>'+r.id+'</td><td class="name">'+esc(r.name)+(r.added?' <span class="hint">(added)</span>':"")+'</td>'
+    + '<td>'+esc(cur(r.currency))+'</td>'
+    + '<td><input class="price" type="number" min="1" step="1" data-f="base" value="'+w.base+'"></td>'
+    + '<td><input class="pct" type="number" min="10" step="10" data-f="min" value="'+w.min+'"></td>'
+    + '<td><input class="pct" type="number" min="10" step="10" data-f="max" value="'+(w.unlimited?"":w.max)+'" placeholder="no max"'+(w.unlimited?" disabled":"")+'></td>'
+    + '<td><input type="checkbox" data-f="unl"'+(w.unlimited?" checked":"")+' title="No maximum (the server allows up to 100 x the base price)"></td>'
+    + '<td class="num" data-c="lo"></td><td class="num" data-c="hi"></td>'
+    + '<td>'+(r.added?'<input class="lim" type="number" min="1" step="1" data-f="limit" value="'+w.limit+'">':'<span class="hint">'+r.limit+'</span>')+'</td>'
+    + '<td>'+(r.added?'<button class="ghost" data-rm="'+r.id+'" title="Remove this added item">&times;</button>':"")+'</td></tr>';
+}
+function refreshPrices(tr){
+  const id = +tr.dataset.id, r = D.rows.find(x => x.id === id), w = W[id];
+  const lo = priceAt(w.base, w.min), hiRaw = priceAt(w.base, w.unlimited ? UNL : w.max), hi = Math.min(hiRaw, D.ceiling);
+  tr.querySelector('[data-c="lo"]').textContent = fmtN(lo);
+  const c = tr.querySelector('[data-c="hi"]');
+  c.innerHTML = hiRaw > D.ceiling ? '<span class="over" title="The server never accepts a price above '+fmtN(D.ceiling)+'">'+fmtN(hi)+' (capped)</span>' : (w.unlimited ? fmtN(hi)+' <span class="hint">(100x)</span>' : fmtN(hi));
+  tr.classList.toggle("ed", !sameRow(w, fromRow(r)) || r.edited);
+}
+function renderTable(){
+  SHOWN = visible();
+  const body = $("tbody");
+  body.innerHTML = SHOWN.length ? SHOWN.map(rowHtml).join("") : '<tr><td colspan="11" class="hint">No items match.</td></tr>';
+  body.querySelectorAll("tr[data-id]").forEach(refreshPrices);
+  $("count").textContent = SHOWN.length + " of " + D.rows.length + " items shown";
+  $("bulkN").textContent = SHOWN.length;
+  updateButtons();
+}
+function updateButtons(){ const n = dirtyIds().length; $("save").disabled = !n; $("undo").disabled = !n;
+  $("dirtyMsg").innerHTML = n ? '<span class="unsaved">'+n+' unsaved row'+(n===1?"":"s")+'.</span> ' : ""; renderMeta(); }
+
+function render(){
+  renderMeta();
+  let h = '<p class="intro"><b>Items allowed on player stalls.</b> Each item has a <b>base price</b> and a price range given as <b>Min %</b> and <b>Max %</b> of it (100 = the base price). Players pick a price inside that range, in steps of 10% of the base price. Tick <b>No max</b> to set only a minimum: the server then allows up to 100 times the base price. Prices shown are what the server accepts.</p>';
+  h += '<div class="filterbar"><input id="q" type="search" placeholder="Search name or item id" value="'+esc(filter)+'" style="min-width:240px"><label><input type="checkbox" id="onlyEd"'+(onlyEdited?" checked":"")+'> Only edited/added</label><span class="hint" id="count"></span></div>';
+  h += '<div class="bulk"><div class="row"><b>Set all <span id="bulkN">0</span> shown items:</b> Min % <input class="pct" id="bMin" type="number" min="10" step="10" placeholder="e.g. 100"> Max % <input class="pct" id="bMax" type="number" min="10" step="10" placeholder="e.g. 150"> <label><input type="checkbox" id="bUnl"> No max</label> <button id="bGo">Set shown</button><span class="hint">Leave a box empty to keep each item\'s own value. Nothing is saved until you press Save.</span></div></div>';
+  h += '<div class="tablewrap"><table><thead><tr><th>Item</th><th>Name</th><th>Currency</th><th>Base price</th><th>Min %</th><th>Max %</th><th>No max</th><th>Min price</th><th>Max price</th><th>Per slot</th><th></th></tr></thead><tbody id="tbody"></tbody></table></div>';
+  h += '<div class="btns"><button class="primary" id="save" disabled>Save</button><button id="undo" disabled>Undo unsaved changes</button><span class="hint" id="dirtyMsg"></span></div>';
+  h += '<div class="hint" style="margin-top:6px">Save keeps your edits in overrides/stalls.json. Apply to game (top right) writes them into TradeConfig.json, then restart the server. Rows you add are only the server side: whether the game client shows the Stall button for them is checked in game.</div>';
+  h += '<div class="check"><b>Add an item to the stall list</b><div class="row" style="margin-top:6px">Item ID <input id="aId" type="number" min="1" step="1" style="width:120px"> <span id="aName" class="hint"></span></div>'
+     + '<div class="row" style="margin-top:6px">Currency <select id="aCur"><option value="1">Zeny</option><option value="2">Minted Coin</option></select> Base price <input id="aBase" type="number" min="1" step="1" style="width:120px"> Min % <input id="aMin" class="pct" type="number" min="10" step="10" value="100" style="width:76px"> Max % <input id="aMax" class="pct" type="number" min="10" step="10" value="150" style="width:76px"> <label><input type="checkbox" id="aUnl"> No max</label> Per slot <input id="aLim" type="number" min="1" step="1" value="1" style="width:70px"> <button id="aGo">Add item</button></div><div class="out" id="aOut"></div></div>';
+  $("card").innerHTML = h;
+  renderTable();
+  wire();
+}
+
+function wire(){
+  $("q").oninput = e => { filter = e.target.value; renderTable(); };
+  $("onlyEd").onchange = e => { onlyEdited = e.target.checked; renderTable(); };
+  const body = $("tbody");
+  body.onchange = e => {
+    const el = e.target, tr = el.closest("tr[data-id]"); if(!tr) return;
+    const id = +tr.dataset.id, w = W[id], f = el.dataset.f;
+    if(f === "unl"){ w.unlimited = el.checked; if(w.unlimited) w.max = UNL; else if(w.max >= UNL) w.max = Math.max(w.min, 150); tr.querySelector('[data-f="max"]').disabled = w.unlimited; tr.querySelector('[data-f="max"]').value = w.unlimited ? "" : w.max; }
+    else { const v = el.value === "" ? NaN : Number(el.value);
+      if(!Number.isFinite(v)){ toast("Type a number."); el.value = f === "max" ? w.max : w[f]; return; }
+      w[f] = v; if(f === "max" && v >= UNL) { w.unlimited = true; tr.querySelector('[data-f="unl"]').checked = true; el.disabled = true; el.value = ""; } }
+    refreshPrices(tr); updateButtons();
+  };
+  body.onclick = async e => { const b = e.target.closest("button[data-rm]"); if(!b) return;
+    if(!confirm("Remove item " + b.dataset.rm + " from the items you added?")) return;
+    try{ D = await api("/api/stalls/remove-added", {id: +b.dataset.rm}); META = D.meta; syncW(); renderTable(); toast("Removed.", true); }catch(x){ toast(x.message); } };
+  $("bGo").onclick = () => {
+    const mn = $("bMin").value, mx = $("bMax").value, unl = $("bUnl").checked;
+    if(mn === "" && mx === "" && !unl){ toast("Fill in Min %, Max % or tick No max."); return; }
+    SHOWN.forEach(r => { const w = W[r.id];
+      if(mn !== "") w.min = Number(mn);
+      if(unl){ w.unlimited = true; w.max = UNL; } else if(mx !== ""){ w.unlimited = false; w.max = Number(mx); } });
+    renderTable(); toast("Set on " + SHOWN.length + " items. Press Save to keep it.", true);
+  };
+  $("save").onclick = save;
+  $("undo").onclick = () => { syncW(); renderTable(); };
+  $("aId").oninput = lookup;
+  $("aGo").onclick = addItem;
+}
+let lookupTimer = null;
+function lookup(){
+  clearTimeout(lookupTimer);
+  lookupTimer = setTimeout(async () => {
+    const id = $("aId").value; const out = $("aName");
+    if(!id){ out.textContent = ""; $("aOut").textContent = ""; return; }
+    try{ const r = await api("/api/stalls/item-info", {id: Number(id)});
+      out.textContent = r.known ? r.name : ""; out.className = "hint";
+      $("aOut").textContent = r.known ? (r.note || "") : "No such item in ItemConfig."; $("aOut").className = r.known && !/can't be added/.test(r.note||"") ? "out" : "out err";
+      if(r.known && r.stack !== undefined) $("aLim").value = r.stack > 1 ? Math.min(r.stack, 99) : 1;
+    }catch(e){ out.textContent = ""; $("aOut").textContent = e.message; $("aOut").className = "out err"; }
+  }, 250);
+}
+async function addItem(){
+  try{
+    D = await api("/api/stalls/add-item", {id: Number($("aId").value), currency: Number($("aCur").value), base: Number($("aBase").value),
+      min: Number($("aMin").value), max: Number($("aMax").value), unlimited: $("aUnl").checked, limit: Number($("aLim").value)});
+    META = D.meta; syncW(); filter = ""; render(); toast("Item added. Apply to game when you are ready, then restart the server.", true);
+  }catch(e){ toast(e.message); }
+}
+async function save(){
+  const ids = dirtyIds();
+  try{
+    D = await api("/api/stalls/set-many", {items: ids.map(id => ({id, base: W[id].base, min: W[id].min, max: W[id].max, unlimited: W[id].unlimited, limit: W[id].limit}))});
+    META = D.meta; syncW(); renderTable(); toast("Saved " + ids.length + " row" + (ids.length===1?"":"s") + ". Use Apply to game when you are ready, then restart the server.", true);
+  }catch(e){ toast(e.message); }
+}
+$("btnApply").onclick = async () => {
+  $("btnApply").disabled = true;
+  try{
+    if(dirty()){
+      if(!confirm("You have unsaved changes. Save them and apply?")){ renderMeta(); return; }
+      await save();
+    }
+    const r = await api("/api/stalls/apply", {}); META = r.meta; D = await api("/api/stalls/get"); syncW();
+    toast("Applied. Restart the server to use the new stall prices.", true);
+  }catch(e){ toast(e.message); }
+  renderTable();
+};
+$("btnRebase").onclick = async () => { if(!confirm("Use the current TradeConfig as the new untouched original? Your edits are kept and laid on top.")) return;
+  try{ await api("/api/stalls/rebaseline", {}); await boot(); toast("Current file is now the original.", true);}catch(e){toast(e.message);} };
+$("btnRestore").onclick = async () => { if(!confirm("Put the untouched original TradeConfig back in the game folder? (A backup is made first. Your edits stay saved.)")) return;
+  try{ META = await api("/api/stalls/restore-original", {}); D.meta = META; renderMeta(); toast("Original restored. Restart the server.", true);}catch(e){toast(e.message);} };
+$("btnDiscard").onclick = async () => { if(!confirm("Throw away ALL your saved stall edits and added items?")) return;
+  try{ D = await api("/api/stalls/reset-all", {}); META = D.meta; syncW(); render(); toast("Edits discarded.", true);}catch(e){toast(e.message);} };
+async function boot(){ D = await api("/api/stalls/get"); META = D.meta; syncW(); render(); }
+boot().catch(e => { $("card").innerHTML = '<p class="err">' + esc(e.message) + '</p>'; toast(e.message); });
+</script>
+</body>
+</html>
