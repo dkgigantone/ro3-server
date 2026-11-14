@@ -17,7 +17,12 @@ Your edits live in overrides/stalls.json (only what you changed):
   Edits  {item id: {"min": %, "max": %, "unlimited": bool, "base": price}}  changed fields of existing stall rows
   Added  {item id: {"currency", "base", "min", "max", "unlimited", "limit"}}  stall rows this page creates
 "Apply" rewrites TradeConfig.json = untouched original + your edits, with a backup first. The server reads the table at
-start, so restart it. Added items also need the game client to know a stall row for the item: UNKNOWN until tested in game.
+start, so restart it.
+The game client keeps its own copy of TradeConfig and hides the Stall button for an item without a row there (the bag says
+"Untradeable"; CONFIRMED in game with item 1011201). So Apply also writes lines for the client hook (ConfigOverlay) into
+client-overlay/config-overlay.tsv and copies the file into the client: "TradeConfig <id> @clone <source row>" plus the row's
+fields for every added item, and the changed fields of edited rows. Removing an added item and applying drops its lines, and
+the item is "Untradeable" again after the client restarts. The hook needs the rebuilt client hooks (see README).
 Standard library only.
 """
 import hashlib
@@ -26,7 +31,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from common import APP_DIR, LOCK, STATE_DIR, atomic_write, compact, read_json, server_running, sha256
+import common
+from common import APP_DIR, LOCK, STATE_DIR, atomic_write, compact, read_json, server_running, sha256, update_overlay
 
 OVERRIDES = APP_DIR / "overrides" / "stalls.json"
 TABLE = "TradeConfig"
@@ -35,6 +41,10 @@ UNLIMITED_TENTHS = 1000      # the highest max the server accepts: 100 times the
 MAX_BACKUPS = 5
 DEFAULT_PRICE_CEILING = 999_999_999
 CURRENCIES = {1: "Zeny", 2: "Minted Coin"}
+# Fields the client hook can set on a TradeConfig row (numbers, and [min, max] pairs written "5:15").
+OVERLAY_NUMBERS = ("_iTrade", "_iType", "_iSubType", "_iBasePrice", "_iMoney", "_iSort", "_iShelveLimit", "_iBuyLimit")
+OVERLAY_PAIRS = ("_kStableRange", "_kVariableRange")
+OVERLAY_EDITED = ("_iBasePrice", "_kStableRange", "_kVariableRange")
 
 
 def _num(v, default=0):
@@ -408,6 +418,25 @@ class StallsEditor:
             out[iid] = n
         return out
 
+    # ------------------------------------------------------------ client overlay
+    def write_overlay(self, ov, out):
+        """Lines for the client hook (ConfigOverlay): an added item is a copy of the stall row it was built from plus its
+        own fields; an edited row only gets its changed fields. Only this page's table is replaced in
+        client-overlay/config-overlay.tsv (the Items and Shops pages keep their lines), and the file is copied into the client."""
+        def line(iid, field, value):
+            text = f"{value[0]}:{value[1]}" if isinstance(value, list) else str(int(value))
+            return "\t".join([TABLE, iid, field, text])
+
+        lines = []
+        for iid in sorted(ov["Added"], key=int):
+            row = out[iid]
+            lines.append("\t".join([TABLE, iid, "@clone", str(int(self._template(ov["Added"][iid]["currency"])["_iID"]))]))
+            lines += [line(iid, f, row[f]) for f in OVERLAY_NUMBERS + OVERLAY_PAIRS]
+        for iid in sorted(ov["Edits"], key=int):
+            if iid in self.orig and iid in out:
+                lines += [line(iid, f, out[iid][f]) for f in OVERLAY_EDITED if f in out[iid]]
+        return update_overlay({TABLE}, lines)
+
     # ------------------------------------------------------------ apply
     def _backup(self, stamp):
         self.backups.mkdir(parents=True, exist_ok=True)
@@ -424,17 +453,22 @@ class StallsEditor:
             st = self.load_state()
             stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             if self.count(ov):
-                text = compact(self.build(ov))
+                built = self.build(ov)
+                text = compact(built)
                 self._backup(stamp)
                 atomic_write(self.live, text)
                 st["applied_sha"] = sha256(self.live)
-            elif st["applied_sha"]:                  # no edits left: put the original back
-                self._backup(stamp)
-                shutil.copy2(self.original, self.live)
-                st["applied_sha"] = None
+                overlay = self.write_overlay(ov, built)
+            else:
+                if st["applied_sha"]:                # no edits left: put the original back
+                    self._backup(stamp)
+                    shutil.copy2(self.original, self.live)
+                    st["applied_sha"] = None
+                overlay = update_overlay({TABLE}, [])  # and nothing left for the client either
             st["applied_overrides"] = self.ov_hash(ov)
             self.save_state(st)
-            return {"rows": self.count(ov), "backup": stamp, "meta": self.meta()}
+            return {"rows": self.count(ov), "backup": stamp, "overlay": overlay,
+                    "published": dict(common.LAST_PUBLISH), "meta": self.meta()}
 
     def restore_original(self):
         with LOCK:
@@ -448,4 +482,5 @@ class StallsEditor:
                 st["applied_sha"] = None
             st["applied_overrides"] = None
             self.save_state(st)
+            update_overlay({TABLE}, [])              # originals are back: nothing for the client to override
             return self.meta()

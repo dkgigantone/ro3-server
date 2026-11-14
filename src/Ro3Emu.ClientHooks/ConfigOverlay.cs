@@ -18,7 +18,10 @@ namespace Ro3Emu.ClientHooks
     /// written <c>9</c>. A line <c>ShopCommodityConfig  NewRow  @clone  SourceRow</c> adds a new shop row: the source row is copied
     /// (with its metatable, which supplies the empty default fields the shop code reads), the field lines of the new row
     /// are applied, and the copy is stored under its id and appended to the tab's list (ShopItemsMap[class]); it is retried
-    /// on every LuaPatches tick until the shop config is loaded. Lines starting with # are comments.
+    /// on every LuaPatches tick until the shop config is loaded. A line <c>TradeConfig  NewRow  @clone  SourceRow</c> adds a player-stall
+    /// row the same way, but through the lookup: the client asks GetEntryPtr for the item's row (the bag's Stall button), and
+    /// the wrapper answers with a copy of the source row carrying the field lines (_iTrade 2, prices, _kStableRange as <c>5:15</c>).
+    /// Lines starting with # are comments.
     /// <para>For each table in the file, GetEntryPtr is wrapped on the config class (the same route as WardrobeCustom,
     /// BaseClass's __newindex writes the shared vtbl, so every config object reaches the wrapper): the row the client asks
     /// for first gets the edited lines. The row is the client's live Lua table; nothing is written to disk and a restart
@@ -34,7 +37,7 @@ namespace Ro3Emu.ClientHooks
         private const int MaxHitLogs = 6;
 
         /// <summary>The table names the overlay accepts (the client config classes are lua_cfg_&lt;lower case name&gt;).</summary>
-        private static readonly string[] Tables = { "CardConfig", "CardUpgradeConfig", "ShopCommodityConfig", "ItemConfig" };
+        private static readonly string[] Tables = { "CardConfig", "CardUpgradeConfig", "ShopCommodityConfig", "ItemConfig", "TradeConfig" };
 
         // Kept alive here: Lua holds the pushed delegates only weakly through xLua's object pool.
         private static readonly List<TableHook> Hooks = new List<TableHook>();
@@ -58,10 +61,12 @@ namespace Ro3Emu.ClientHooks
         private static readonly HashSet<string> NumberFields = new HashSet<string>
         {
             "_iPurchaseNum", "_iPurchaseTimesLimit", "_iItemId", "_iSortId", "_iDiscount", "_iMerchantDiscount", "_iIsBuy", "_iIsLock", "_iRecommendID",
+            // TradeConfig (player stalls): the stall button of the bag needs a row with _iTrade 2 for the item.
+            "_iTrade", "_iType", "_iSubType", "_iBasePrice", "_iMoney", "_iSort", "_iShelveLimit", "_iBuyLimit",
         };
 
         private static Kind KindOf(string field) =>
-            field == "_kItemPerPrice" ? Kind.Flat
+            field == "_kItemPerPrice" || field == "_kStableRange" || field == "_kVariableRange" ? Kind.Flat
             : KeyFields.Contains(field) ? Kind.Key
             : NumberFields.Contains(field) ? Kind.Number
             : Kind.Pairs;
@@ -94,12 +99,18 @@ namespace Ro3Emu.ClientHooks
             public EntryLookup Lookup;
             public int Hits;
             public bool ReadBack;
+            private readonly Dictionary<long, Obf_R.Obf_ff> _clones = new Dictionary<long, Obf_R.Obf_ff>();
+            private int _cloneMisses;
 
             public object Entry(object self, object id)
             {
                 var row = First(Original?.Obf_HuA(self, id));
                 try
                 {
+                    // An added stall item: the client's own TradeConfig has no row for it (so the bag says "Untradeable"
+                    // and hides Stall), and the lookup answers with a copy of the source row instead.
+                    if (row == null && Name == "TradeConfig" && Rows.TryGetValue(LuaPatches.ToLong(id), out var added) && added.CloneFrom > 0)
+                        row = CloneRow(self, LuaPatches.ToLong(id), added);
                     if (row is Obf_R.Obf_ff table && Rows.TryGetValue(LuaPatches.ToLong(id), out var edit))
                     {
                         bool changed = Apply(table, edit);
@@ -109,6 +120,33 @@ namespace Ro3Emu.ClientHooks
                 }
                 catch (Exception e) { Log(Name + " lookup wrapper: " + e.GetType().Name + ": " + e.Message); }
                 return row;
+            }
+
+            /// <summary>A copy of the source row (with its metatable, which supplies the empty default fields), made once per id.</summary>
+            private object CloneRow(object self, long id, RowEdit edit)
+            {
+                if (_clones.TryGetValue(id, out var have)) return have;
+                if (_next == null || _getmt == null || _setmt == null) return null;
+                if (!(First(Original?.Obf_HuA(self, edit.CloneFrom)) is Obf_R.Obf_ff src))
+                {
+                    if (_cloneMisses++ < MaxHitLogs) Log(Name + " " + id + ": source row " + edit.CloneFrom + " not found; row not added");
+                    return null;
+                }
+                var copy = NewTable();
+                object key = null;
+                for (var guard = 0; guard < 500; guard++)
+                {
+                    var pair = _next.Obf_HuA(src, key);
+                    if (pair == null || pair.Length < 2 || pair[0] == null) break;
+                    key = pair[0];
+                    _rawset.Obf_HuA(copy, key, pair[1]);
+                }
+                var meta = _getmt.Obf_HuA(src);
+                if (meta != null && meta.Length > 0 && meta[0] != null) _setmt.Obf_HuA(copy, meta[0]);
+                _rawset.Obf_HuA(copy, "_iID", id);
+                _clones[id] = copy;
+                Log(Name + " " + id + ": added as a copy of row " + edit.CloneFrom);
+                return copy;
             }
         }
 
