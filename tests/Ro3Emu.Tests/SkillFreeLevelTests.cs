@@ -15,6 +15,7 @@ namespace Ro3Emu.Tests;
 public sealed class SkillFreeLevelTests
 {
     private const int Sight = 995, Sprout = 996, FireWall = 997, FreeWithoutPrerequisite = 998, Bolt = 999;
+    private const int OtherJobFree = 994; // a free skill of a job whose tree the character's job does not have
 
     // The report's first symptom: the client's refund of Sight names Sprout at 0, which came back Parameter.
     [Fact]
@@ -52,6 +53,23 @@ public sealed class SkillFreeLevelTests
         Assert.Equal(1, skills.Level(session.Progress!, Sprout));
         Assert.Equal(0, skills.Level(session.Progress!, Sight));
         Assert.Equal(0, await Update(alice, 1, (Bolt, 1)));
+    });
+
+    // A saved build keeps the free skills of a job the character had before (a job change through the GM, or into another
+    // line). Switching to it came back 341 (SkillNotInTree) for every job; only a level above the free one is refused.
+    [Fact]
+    public async Task ABuildHoldingAnotherJobsFreeSkillSwitchesIn() => await InWorld(async (host, alice, session) =>
+    {
+        var skills = host.Service<SkillService>();
+        session.SkillPlans!.SkillAssignPlans[2].SkillAssigns[OtherJobFree] = new SkillData { SkillId = OtherJobFree, SkillLevel = 2 };
+        await alice.SendGameAsync(SkillService.SwitchPlan, new SwitchPlanReq { Plan = 2 });
+        Assert.Equal(ErrorCodes.SkillNotInTree, (await Next(alice, SkillService.SwitchPlan, SwitchPlanResp.Parser)).Result);
+
+        session.SkillPlans!.SkillAssignPlans[1].SkillAssigns[OtherJobFree] = new SkillData { SkillId = OtherJobFree, SkillLevel = 1 };
+        await alice.SendGameAsync(SkillService.SwitchPlan, new SwitchPlanReq { Plan = 1 });
+        Assert.Equal(0, (await Next(alice, SkillService.SwitchPlan, SwitchPlanResp.Parser)).Result);
+        Assert.Equal(1, session.SkillPlans!.CurrentPlanIndex);
+        Assert.Equal(0, skills.Level(session.Progress!, OtherJobFree)); // not in this job's tree: no level
     });
 
     [Fact]
@@ -123,7 +141,8 @@ public sealed class SkillFreeLevelTests
               "99701":{"_iID":99701,"_iSkillID":997,"_iLevel":1,"_iMaxLevel":1,"_iMode":0,"_iBasicType":1,
                 "_kPreSkillRequired":[[995,1]]},
               "99801":{"_iID":99801,"_iSkillID":998,"_iLevel":1,"_iMaxLevel":1,"_iMode":0,"_iInitialLevel":1},
-              "99901":{"_iID":99901,"_iSkillID":999,"_iLevel":1,"_iMaxLevel":1,"_iMode":0,"_iBasicType":1}
+              "99901":{"_iID":99901,"_iSkillID":999,"_iLevel":1,"_iMaxLevel":1,"_iMode":0,"_iBasicType":1},
+              "99401":{"_iID":99401,"_iSkillID":994,"_iLevel":1,"_iMaxLevel":1,"_iMode":0,"_iInitialLevel":1}
             }
             """);
         File.WriteAllText(Path.Combine(root, "config", "SkillTreeConfig.json"), """

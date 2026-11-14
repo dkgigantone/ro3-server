@@ -139,6 +139,9 @@ public sealed partial class SkillService
         return [.. list.DistinctBy(t => t.Group)];
     }
 
+    /// <summary>SkillConfig._iInitialLevel of a group: the level a skill has for free, whatever the character's job.</summary>
+    private int FreeLevel(int group) => _data.Row("SkillConfig", RealId(group, 1)) is { } row ? (int)GameData.Int(row, "_iInitialLevel") : 0;
+
     private int Initial(RoleProgress p, int group)
     {
         if (_data.Row("SkillConfig", RealId(group, 1)) is not { } row) return 0;
@@ -682,6 +685,10 @@ public sealed partial class SkillService
         {
             if (assignment.SkillLevel == 1 && normalAttacks.Contains(group)) continue;
             if (assignment.SkillLevel <= 1 && IsQueueGroup(group)) continue; // the Lineup button: free, in no skill tree row
+            // A saved plan keeps the free skills of every job the character had (a job change through the GM, or into another
+            // line): they cost no points, are never applied (only levels above the free one are) and are in no tree of the
+            // new job. Refusing them made every switch to such a plan come back 341, for every job.
+            if (!tree.ContainsKey(group) && assignment.SkillLevel > 0 && assignment.SkillLevel <= FreeLevel(group)) continue;
             if (assignment.SkillLevel < 0 || assignment.SkillLevel > MaxLevel(group)
                 || (!tree.ContainsKey(group) && assignment.SkillLevel > 0)) return ErrorCodes.SkillNotInTree;
             if (assignment.SkillId != 0 && assignment.SkillId != group) return ErrorCodes.Parameter;
