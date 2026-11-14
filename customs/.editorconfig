@@ -1,0 +1,10 @@
+# Style rules for our own code (customs). The official code base builds with these IDE rules as errors; the custom code was
+# written before the gate and is relaxed here only for the rules below, so the official files stay untouched.
+root = false
+
+[*.cs]
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.IDE0300.severity = none
+dotnet_diagnostic.IDE0301.severity = none
+dotnet_diagnostic.IDE0305.severity = none
+dotnet_diagnostic.IDE0028.severity = none

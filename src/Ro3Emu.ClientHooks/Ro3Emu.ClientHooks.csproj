@@ -49,6 +49,10 @@
     <EmbeddedResource Include="Textures\*.png" LogicalName="textures/%(Filename)%(Extension)" />
     <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(ClientManaged)\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(ClientManaged)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(ClientManaged)\UnityEngine.AssetBundleModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(ClientManaged)\UnityEngine.AnimationModule.dll</HintPath><Private>false</Private></Reference>
+    <!-- Our own client additions (custom hats, custom body models, wardrobe tweaks) live in one folder at the repository root: customs\ClientHooks. -->
+    <Compile Include="..\..\customs\ClientHooks\*.cs" Link="Customs\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,21 @@
+﻿Key,ItemName,Description,StyleBonus,Rarity,Stall,StallPrice,OriginHat,ItemID,WardrobeID,RenamedFrom,Slot
+ValkyrieHat,Valkyrie Hat,A winged helmet of the Valkyries.,1000,Luxury,TRUE,1000000,,3004901,10049001,Valkyriehat,
+CatEarBeret,Cat Ear Beret,A beret with little cat ears.,500,Advanced,TRUE,250000,maoerbeileimao,3004902,10049002,Maoerbeileimao,
+AdvancedMusketeerHat,Advanced Musketeer Hat,"Advanced Musketeer Hat, imported from Origin.",500,Advanced,TRUE,250000,haidaomao2,3004903,10049003,PirateHat2,
+SeaBoneHelmet,Skeleton Helmet,"Sea Bone Helmet, imported from Origin.",1000,Luxury,TRUE,1000000,haigutoukui,3004904,10049004,,
+Hat2026GhostFaceWarrior01,Ghost Face Warrior Pin,"2026 Ghost-Face Warrior 01, imported from Origin.",1000,Luxury,TRUE,1000000,2026guimianwushi01,3004905,10049005,,
+Hat2024HellfireKnight,Oni Visage,"2024 Hellfire Knight, imported from Origin.",1000,Luxury,TRUE,3000000,2024diyuhuoqishi,3004906,10049006,,
+Hat2025GoldenGoddess,Coronal Dawn,"2025 Golden Goddess, imported from Origin.",1000,Luxury,TRUE,3000000,2025huangjinnvwushen,3004907,10049007,,
+Hat2025Suoerbei,Astral Vissage,"2025 Suoerbei, imported from Origin.",1000,Luxury,TRUE,1000000,2025suoerbei,3004908,10049008,,
+Hat2026GhostFaceWarrior,Ghost Face Warrior,"2026 Ghost-Face Warrior, imported from Origin.",1000,Luxury,TRUE,1000000,2026guimianwushi,3004909,10049009,,
+RaccoonGoggles,Raccoon Goggles,"Dongwuqiyuan2, imported from Origin.",500,Advanced,TRUE,50000,dongwuqiyuan2,3004910,20049001,Dongwuqiyuan2,face
+Lachryma,Lachryma,"2025Tianshideshengxiang, imported from Origin.",10,Advanced,TRUE,25000,2025tianshideshengxiang,3004911,20049002,Hat2025Tianshideshengxiang,face
+Hat2025Xiadao,Sunshine Boy,"2025Xiadao, imported from Origin.",10,Advanced,TRUE,25000,2025xiadao,3004912,20049003,,face
+Hat2025Jinniuzuo,Obsidian Ears,"2025Jinniuzuo, imported from Origin.",10,Advanced,TRUE,25000,2025jinniuzuo,3004913,20049004,,face
+Bingbaomianju,Stormy Mask,"Bingbaomianju, imported from Origin.",10,Luxury,TRUE,1000000,bingbaomianju,3004914,20049005,,face
+Hat2025Shamoxingzhe,Desert Goggles,"2025Shamoxingzhe, imported from Origin.",10,Advanced,TRUE,25000,2025shamoxingzhe,3004915,20049006,,face
+Boliyanzhao,Angel Blinker,"Boliyanzhao, imported from Origin.",10,Advanced,TRUE,25000,boliyanzhao,3004916,20049007,,face
+Dayimianao,Red Framed Glasses,"Dayimianao, imported from Origin.",10,Advanced,TRUE,25000,dayimianao,3004917,20049008,,face
+Hat2025Daixingzhe,Retribution's Eye,"2025Daixingzhe, imported from Origin.",10,Advanced,TRUE,25000,2025daixingzhe,3004918,20049009,,face
+Houzhongyanjing,Thick Glasses,"Houzhongyanjing, imported from Origin.",500,Advanced,TRUE,25000,houzhongyanjing,3004919,20049010,,face
+StrawHat,Straw Hat,"Straw Hat, imported from Origin.",10,Advanced,TRUE,25000,caomao,3004920,10049010,,head

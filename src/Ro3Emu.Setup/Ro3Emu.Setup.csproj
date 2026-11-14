@@ -30,6 +30,7 @@
     <Compile Include="..\Ro3Emu.ClientTools\VoiceStubPatch.cs" Link="Client\VoiceStubPatch.cs" />
     <Compile Include="..\Ro3Emu.ClientTools\OpenUrlPatch.cs" Link="Client\OpenUrlPatch.cs" />
     <Compile Include="..\Ro3Emu.ClientTools\Launcher.cs" Link="Client\Launcher.cs" />
+    <Compile Include="..\..\customs\ClientTools\ResourceProbePatch.cs" Link="Client\ResourceProbePatch.cs" />
   </ItemGroup>
 
   <!-- Our English translations (public sources, no client text beyond the strings they translate); merged on the

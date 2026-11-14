@@ -30,3 +30,7 @@ tools/unluac-batch/*.class
 
 # Temporary solution of tools/AnalyzerBaseline
 /.analyzer-baseline.slnx
+
+# Our custom art (Origin data): kept in customs/assets, never committed
+/customs/assets/*
+!/customs/assets/README.md

@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RO3 Eclipse - Custom Items</title>
+<style>
+:root{
+  --bg:#f4f6fa; --panel:#ffffff; --panel2:#f0f3f8; --line:#dfe5ee; --text:#1b2433; --muted:#6a778c;
+  --accent:#3b6df0; --accent-d:#2c55c7; --ok:#18a56b; --warn:#c98a0b; --bad:#d6404f; --chip:#e8eefc; --edit:#fff6dc;
+  --shadow:0 1px 2px rgba(20,30,50,.06),0 4px 14px rgba(20,30,50,.06);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0e1420; --panel:#151d2c; --panel2:#1b2638; --line:#27344b; --text:#e6ecf6; --muted:#8c9bb3;
+  --accent:#6b93ff; --accent-d:#5a82f0; --ok:#3ccf91; --warn:#f0b64a; --bad:#ff7380; --chip:#22314f; --edit:#3a3216;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:7px 14px;border-radius:8px}
+button:hover{background:var(--panel2)}
+button:disabled{opacity:.5;cursor:default}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{background:var(--accent-d)}
+button.go{background:var(--ok);border-color:var(--ok);color:#fff;font-weight:600}
+button.danger{color:var(--bad)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+button.ghost:hover{color:var(--text);background:var(--panel2)}
+input,select,textarea{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+textarea{width:100%;resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+nav.top{display:flex;gap:4px;background:var(--panel2);padding:3px;border-radius:10px}
+nav.top button{border:0;background:transparent;color:var(--muted);font-weight:600;padding:5px 14px}
+nav.top button.on{background:var(--panel);color:var(--text);box-shadow:var(--shadow)}
+.spacer{flex:1}
+.pill{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)} .pill.bad{color:var(--bad)}
+.path{color:var(--muted);font-size:12px;max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+main{flex:1;min-height:0;display:grid;grid-template-columns:330px 1fr;gap:16px;padding:16px 20px 20px}
+aside,section.main{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);min-height:0;display:flex;flex-direction:column}
+aside .tools{padding:12px;display:grid;gap:8px;border-bottom:1px solid var(--line)}
+#list{overflow:auto;flex:1}
+.item{padding:9px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;gap:10px;align-items:center}
+.item:hover{background:var(--panel2)} .item.sel{background:var(--chip)}
+.item .n{flex:1;min-width:0}
+.item .n b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.item .n span{color:var(--muted);font-size:12px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--warn)}
+.dot.ok{background:var(--ok)}
+.count{padding:8px 14px;color:var(--muted);font-size:12px;border-top:1px solid var(--line)}
+section.main{overflow:auto}
+.pad{padding:20px 24px 28px;max-width:980px}
+.empty{padding:48px 32px;color:var(--muted);max-width:640px}
+.empty h2{color:var(--text);margin:0 0 8px}
+.title{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.title h2{margin:0;font-size:22px}
+.sub{color:var(--muted)}
+.card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:14px 0;background:var(--panel)}
+.card h3{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.form .full{grid-column:1/-1}
+.form label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+.form input,.form select{width:100%}
+.form .changed input,.form .changed select,.form .changed textarea{background:var(--edit);border-color:var(--warn)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.checks{display:grid;gap:6px}
+.check{display:grid;grid-template-columns:20px 230px 1fr;gap:8px;align-items:baseline;padding:5px 0;border-top:1px solid var(--line)}
+.check:first-child{border-top:0}
+.check .mark{font-weight:700} .check.ok .mark{color:var(--ok)} .check.no .mark{color:var(--bad)}
+.check small{color:var(--muted)}
+.hint{color:var(--muted);font-size:12.5px}
+.results{max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:6px}
+.results div{padding:5px 10px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+.results div:hover{background:var(--panel2)}
+.results small{color:var(--muted)}
+pre.out{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;max-height:46vh;overflow:auto;font:12px/1.4 Consolas,monospace;white-space:pre-wrap;margin:10px 0 0}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;padding:9px 16px;border-radius:10px;box-shadow:var(--shadow);display:none;z-index:30;max-width:80vw;white-space:pre-wrap}
+.toast.ok{background:var(--ok)}
+.live{display:grid;grid-template-columns:130px 1fr 90px;gap:8px 12px;align-items:center}
+.live input[type=range]{width:100%;padding:0}
+.live input[type=number]{width:90px;text-align:right}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:5px 14px}
+.seg button.on{background:var(--accent);color:#fff}
+.banner{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);margin:0 0 12px}
+.banner.warn{border-color:var(--warn)}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1>RO3 Eclipse Custom Items</h1>
+  <nav class="top"><button id="tabItems" class="on">Items</button><button id="tabLive">Live tuning</button></nav>
+  <span class="path" id="clientPath" title="Click to change the game folder"></span>
+  <span class="pill" id="pillServer">server ...</span>
+  <span class="pill" id="pillGame">game ...</span>
+  <span class="spacer"></span>
+  <button id="btnPreview" title="Shows what the build would change. Writes nothing.">Preview build</button>
+  <button class="primary" id="btnBuild" title="Builds the server tables, the client list and the aliases from the list on the left.">Save &amp; Build</button>
+  <button class="go" id="btnRun" title="Builds, starts the server and the game, and opens the live tuning page.">&#9654; Run with live editor</button>
+</header>
+<main id="mainItems">
+  <aside>
+    <div class="tools">
+      <input id="search" placeholder="Search name, key or ID">
+      <div class="row"><select id="slotFilter"><option value="">All slots</option></select>
+        <button class="primary" id="btnNew" style="margin-left:auto">+ Add custom item</button></div>
+    </div>
+    <div id="list"></div>
+    <div class="count" id="count"></div>
+  </aside>
+  <section class="main"><div id="detail"></div></section>
+</main>
+<main id="mainLive" class="hidden">
+  <aside>
+    <div class="tools"><input id="liveSearch" placeholder="Search"><div class="hint">Pick an item, then move the sliders. Every change is written to its settings file at once; the running game shows it live.</div></div>
+    <div id="liveList" style="overflow:auto;flex:1"></div>
+  </aside>
+  <section class="main"><div id="liveDetail"></div></section>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let S = null;             // state from the server
+let sel = null;           // selected item key, or "__new__"
+let draft = {};           // unsaved edits of the selected item
+let results = [];         // Origin search results
+let lastOut = null;       // output of the last build / preview, kept while the page redraws
+let live = {key: null, g: "", opts: null, timer: null, busy: false, pending: false};
+
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function toast(msg, ok){ const t=$("toast"); t.textContent=msg; t.className="toast"+(ok?" ok":""); t.style.display="block"; clearTimeout(toast.h); toast.h=setTimeout(()=>t.style.display="none", ok?5000:12000); }
+async function api(path, body){
+  const r = await fetch(path, body===undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  const j = await r.json().catch(()=>({error:"bad answer"}));
+  if(!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+const byKey = k => (S?.items||[]).find(i => i.Key === k);
+
+// ---------------------------------------------------------------- loading
+async function load(keep){
+  S = await api("/api/state");
+  $("clientPath").textContent = S.client;
+  const sf = $("slotFilter");
+  if(sf.options.length < 2) for(const [k,v] of Object.entries(S.slots)) sf.add(new Option(v.label, k));
+  setPills(S);
+  if(!keep && !sel && S.items.length) sel = S.items[0].Key;
+  renderList(); renderDetail(); renderLive();
+}
+function setPills(st){
+  $("pillServer").textContent = "server " + (st.server ? "running" : "stopped");
+  $("pillServer").className = "pill " + (st.server ? "ok" : "");
+  $("pillGame").textContent = "game " + (st.game ? "running" : "closed");
+  $("pillGame").className = "pill " + (st.game ? "ok" : "");
+}
+setInterval(async()=>{ try{ setPills(await api("/api/status")); }catch(e){} }, 5000);
+
+// ---------------------------------------------------------------- items list
+function filtered(){
+  const q = $("search").value.trim().toLowerCase(), sf = $("slotFilter").value;
+  return S.items.filter(i => (!sf || i.Slot === sf) && (!q || (i.ItemName+" "+i.Key+" "+i.ItemID).toLowerCase().includes(q)));
+}
+function renderList(){
+  const list = filtered();
+  $("list").innerHTML = list.map(i => `<div class="item ${i.Key===sel?"sel":""}" data-k="${esc(i.Key)}">
+    <span class="dot ${i.ready?"ok":""}" title="${i.ready?"everything is in place":"something is missing"}"></span>
+    <div class="n"><b>${esc(i.ItemName)}</b><span>${esc(S.slots[i.Slot]?.label||i.Slot)} &middot; ${esc(i.Rarity)} &middot; ${esc(i.ItemID)}</span></div></div>`).join("");
+  $("count").textContent = list.length + " of " + S.items.length + " custom items";
+  for(const el of $("list").children) el.onclick = () => select(el.dataset.k);
+}
+function select(k){ sel = k; draft = {}; results = []; renderList(); renderDetail(); }
+$("search").oninput = renderList; $("slotFilter").onchange = renderList;
+
+// ---------------------------------------------------------------- detail / add
+const val = (item, f) => (f in draft) ? draft[f] : item[f];
+function field(item, f, label, input, full){
+  const changed = f in draft && String(draft[f]) !== String(item[f]);
+  return `<div class="${full?"full ":""}${changed?"changed":""}"><label>${label}</label>${input}</div>`;
+}
+function renderDetail(){
+  const box = $("detail");
+  if(sel === "__new__") return renderNew(box);
+  const item = byKey(sel);
+  if(!item){ box.innerHTML = `<div class="empty"><h2>Custom items</h2><p>Pick an item on the left, or press <b>+ Add custom item</b>.</p></div>`; return; }
+  const slotCfg = S.slots[item.Slot];
+  const rar = S.rarities.map(r => `<option ${val(item,"Rarity")===r?"selected":""}>${esc(r)}</option>`).join("");
+  const dirty = Object.keys(draft).length > 0;
+  box.innerHTML = `<div class="pad">
+    <div class="title"><h2>${esc(val(item,"ItemName"))}</h2><span class="sub">${esc(slotCfg.label)} &middot; key ${esc(item.Key)} &middot; wardrobe ID ${esc(item.WardrobeID)}</span></div>
+    <div class="card"><div class="form">
+      ${field(item,"ItemName","Custom item name",`<input data-f="ItemName" value="${esc(val(item,"ItemName"))}" maxlength="60">`)}
+      ${field(item,"Rarity","Rarity",`<select data-f="Rarity">${rar}</select>`)}
+      ${field(item,"ItemID",`Item ID (${S.itemFirst}-${S.itemLast})`,`<input data-f="ItemID" type="number" value="${esc(val(item,"ItemID"))}">`)}
+      ${field(item,"StyleBonus","Style bonus (10-1000)",`<input data-f="StyleBonus" type="number" value="${esc(val(item,"StyleBonus"))}">`)}
+      ${field(item,"Stall","Sold on the player market",`<select data-f="Stall"><option value="true" ${val(item,"Stall")?"selected":""}>Yes</option><option value="false" ${!val(item,"Stall")?"selected":""}>No (cannot be traded)</option></select>`)}
+      ${field(item,"StallPrice","Market base price",`<input data-f="StallPrice" type="number" value="${esc(val(item,"StallPrice"))}">`)}
+      ${field(item,"OriginHat","Origin file name (where its model comes from)",`<input data-f="OriginHat" value="${esc(val(item,"OriginHat"))}">`)}
+      ${field(item,"WardrobeID",`Wardrobe ID (${slotCfg.wardFirst}-${slotCfg.wardLast})`,`<input data-f="WardrobeID" type="number" value="${esc(val(item,"WardrobeID"))}">`)}
+      ${field(item,"Description","Description",`<textarea data-f="Description" rows="2">${esc(val(item,"Description"))}</textarea>`,true)}
+    </div>
+    <p class="hint">Changing the item ID moves the item to a new ID: players who already own the old one keep an item that no longer exists.</p>
+    <div class="btns">
+      <button class="primary" id="bSave" ${dirty?"":"disabled"}>Save changes</button>
+      <button id="bSaveBuild" ${dirty?"":"disabled"}>Save &amp; Build</button>
+      <button id="bLive">Tune in Live tuning</button>
+      <button id="bImport" title="Opens a window that extracts the model and icons from the Origin game files.">Import files from Origin</button>
+      <span class="spacer"></span>
+      <button class="danger" id="bDelete">Remove from list</button>
+    </div></div>
+    <div class="card"><h3>Steps for this item ${item.ready?"&mdash; everything is in place":""}</h3><div class="checks">
+      ${item.checks.map(c => `<div class="check ${c.ok?"ok":"no"}"><span class="mark">${c.ok?"&#10003;":"&#10007;"}</span><b>${esc(c.name)}</b><span>${esc(c.detail)}${c.ok||!c.hint?"":`<br><small>${esc(c.hint)}</small>`}</span></div>`).join("")}
+    </div></div>${outHtml()}</div>`;
+  for(const el of box.querySelectorAll("[data-f]")) el.oninput = el.onchange = () => {
+    let v = el.value; if(el.dataset.f === "Stall") v = v === "true";
+    draft[el.dataset.f] = v; markDirty(item);
+  };
+  $("bSave").onclick = () => saveItem(item, false);
+  $("bSaveBuild").onclick = () => saveItem(item, true);
+  $("bLive").onclick = () => { openLive(item.Key); };
+  $("bImport").onclick = () => doImport(item);
+  $("bDelete").onclick = () => removeItem(item);
+}
+function markDirty(item){
+  const d = Object.keys(draft).some(f => String(draft[f]) !== String(item[f]));
+  $("bSave").disabled = $("bSaveBuild").disabled = !d;
+  for(const el of document.querySelectorAll("#detail [data-f]")){
+    const f = el.dataset.f, changed = f in draft && String(draft[f]) !== String(item[f]);
+    el.parentElement.classList.toggle("changed", changed);
+  }
+}
+async function saveItem(item, build){
+  try{
+    S = await api("/api/item/save", Object.assign({}, item, draft, {Key:item.Key}));
+    draft = {}; renderList(); renderDetail(); toast("Saved to custom-items.csv", true);
+    if(build) await runBuild(false);
+  }catch(e){ toast(e.message); }
+}
+async function removeItem(item){
+  if(!confirm(`Remove "${item.ItemName}" from the list?\n\nThe next build removes its server rows. Its files in the game folder stay where they are. A backup of the list is kept.`)) return;
+  try{ S = await api("/api/item/delete", {Key:item.Key}); sel = S.items[0]?.Key || null; draft = {}; renderList(); renderDetail(); toast("Removed. Press Save & Build to update the server tables.", true); }
+  catch(e){ toast(e.message); }
+}
+async function doImport(item){
+  const origin = (draft.OriginHat ?? item.OriginHat ?? "").trim();
+  try{ await api("/api/import", {origin, slot:item.Slot}); toast("A window opened: answer its questions there. When it says Done, press Reload.", true); }
+  catch(e){ toast(e.message); }
+}
+
+// ---------------------------------------------------------------- add
+function renderNew(box){
+  const slot = draft.Slot || "head", sc = S.slots[slot];
+  const slotOpts = Object.entries(S.slots).map(([k,v]) => `<option value="${k}" ${k===slot?"selected":""}>${esc(v.label)}</option>`).join("");
+  const rar = S.rarities.map(r => `<option ${((draft.Rarity)||"Advanced")===r?"selected":""}>${esc(r)}</option>`).join("");
+  box.innerHTML = `<div class="pad"><div class="title"><h2>Add custom item</h2><span class="sub">a new wardrobe item with its own name</span></div>
+    <div class="card"><div class="form">
+      <div><label>Custom item name</label><input id="nName" value="${esc(draft.ItemName||"")}" maxlength="60" placeholder="e.g. Valkyrie Hat"></div>
+      <div><label>Slot</label><select id="nSlot">${slotOpts}</select></div>
+      <div><label>Rarity</label><select id="nRar">${rar}</select></div>
+      <div><label>Item ID (${S.itemFirst}-${S.itemLast}, next free: ${sc.nextItem ?? "none"})</label><input id="nItem" type="number" value="${esc(draft.ItemID ?? sc.nextItem ?? "")}"></div>
+      <div><label>Wardrobe ID (next free: ${sc.nextWard ?? "none"})</label><input id="nWard" type="number" value="${esc(draft.WardrobeID ?? sc.nextWard ?? "")}"></div>
+      <div><label>Style bonus (10-1000)</label><input id="nStyle" type="number" value="${esc(draft.StyleBonus ?? 10)}"></div>
+      <div><label>Sold on the player market</label><select id="nStall"><option value="true" ${draft.Stall!==false?"selected":""}>Yes</option><option value="false" ${draft.Stall===false?"selected":""}>No</option></select></div>
+      <div><label>Market base price</label><input id="nPrice" type="number" value="${esc(draft.StallPrice ?? 25000)}"></div>
+      <div class="full"><label>Description</label><textarea id="nDesc" rows="2">${esc(draft.Description||"")}</textarea></div>
+      <div class="full"><label>Model from the Origin files (optional): search, then click a result</label>
+        <div class="row"><input id="nOrigin" style="flex:1" value="${esc(draft.OriginHat||"")}" placeholder="search an Origin item name, e.g. straw"><button id="nSearch">Search</button></div>
+        <div class="results ${results.length?"":"hidden"}" id="nResults">${results.map((r,i)=>`<div data-i="${i}"><b>${esc(r.english)}</b><small>${esc(r.internal)}</small></div>`).join("")}</div>
+        <p class="hint">Without an Origin model the item is created with the Banana look and no model files; you can import or add the files later.</p></div>
+    </div>
+    <div class="btns"><button class="primary" id="nAdd">Add item</button><button id="nAddImport">Add &amp; import files from Origin</button><button class="ghost" id="nCancel">Cancel</button></div></div>${outHtml()}</div>`;
+  const grab = () => { draft = {ItemName:$("nName").value, Slot:$("nSlot").value, Rarity:$("nRar").value, ItemID:$("nItem").value, WardrobeID:$("nWard").value,
+    StyleBonus:$("nStyle").value, Stall:$("nStall").value==="true", StallPrice:$("nPrice").value, Description:$("nDesc").value, OriginHat:$("nOrigin").value}; };
+  $("nSlot").onchange = () => { grab(); draft.ItemID = undefined; draft.WardrobeID = undefined; results = []; renderNew(box); };
+  $("nSearch").onclick = async () => {
+    grab(); const q = draft.OriginHat.trim(); if(!q) return toast("Type a part of the Origin name first.");
+    $("nSearch").disabled = true; $("nSearch").textContent = "Searching...";
+    try{ const r = await api("/api/origin/search?q="+encodeURIComponent(q)+"&slot="+draft.Slot); results = r.results; if(r.error) toast(r.error); if(!r.results.length && !r.error) toast("Nothing found. Try fewer letters."); }
+    catch(e){ toast(e.message); }
+    renderNew(box);
+  };
+  $("nOrigin").onkeydown = e => { if(e.key === "Enter") $("nSearch").click(); };
+  for(const el of $("nResults").children) el.onclick = () => { grab(); const r = results[+el.dataset.i]; draft.OriginHat = r.internal; if(!draft.ItemName.trim()) draft.ItemName = r.english; results = []; renderNew(box); };
+  const add = async imp => {
+    grab();
+    try{
+      const body = Object.assign({}, draft); for(const k of ["ItemID","WardrobeID"]) if(body[k] === undefined) delete body[k];
+      S = await api("/api/item/add", body);
+      const key = S.added; sel = key; draft = {}; results = []; renderList(); renderDetail(); toast("Added to custom-items.csv. Press Save & Build.", true);
+      if(imp){ const it = byKey(key); if(it) await doImport(it); }
+    }catch(e){ toast(e.message); }
+  };
+  $("nAdd").onclick = () => add(false); $("nAddImport").onclick = () => add(true);
+  $("nCancel").onclick = () => { sel = S.items[0]?.Key || null; draft = {}; renderList(); renderDetail(); };
+}
+$("btnNew").onclick = () => { sel = "__new__"; draft = {}; results = []; renderList(); renderDetail(); };
+
+// ---------------------------------------------------------------- build / run
+function outHtml(){
+  if(!lastOut) return "";
+  const o = lastOut;
+  return `<div class="card"><h3>${o.check?"Preview (nothing is written)":"Build"} &mdash; ${o.busy?"working ...":o.ok?"finished":"FAILED"}</h3>
+    ${!o.check && o.ok && o.serverWasRunning ? `<div class="banner warn">The server is running: restart it so it loads the new tables.</div>`:""}
+    ${o.busy ? `<div class="hint">Working ...</div>` : `<pre class="out">${esc(o.text)}</pre>`}</div>`;
+}
+async function runBuild(check){
+  lastOut = {check, busy:true}; renderDetail();
+  try{
+    const r = await api("/api/build", {check});
+    lastOut = {check, ok:r.ok, text:r.output, serverWasRunning:S.server};
+    if(!check) await load(true); else renderDetail();
+    toast(r.ok ? (check?"Preview finished":"Build finished") : "Build failed: see the output", r.ok);
+  }catch(e){ lastOut = null; renderDetail(); toast(e.message); }
+}
+$("btnPreview").onclick = () => { showItems(); runBuild(true); };
+$("btnBuild").onclick = () => { showItems(); runBuild(false); };
+$("btnRun").onclick = async () => {
+  if(!confirm("Build the items, then start the server and the game?\n\n(Close the game and any running server first.)")) return;
+  $("btnRun").disabled = true;
+  try{ await api("/api/run", {build:true}); toast("Started. Log in, then use the sliders on this page.", true); openLive(sel && sel !== "__new__" ? sel : null); }
+  catch(e){ toast(e.message); }
+  $("btnRun").disabled = false;
+};
+$("clientPath").onclick = async () => {
+  const p = prompt("Game folder (the one with ro3emu inside):", S.client); if(!p) return;
+  try{ S = await api("/api/client", {dir:p}); await load(true); toast("Game folder set.", true); }catch(e){ toast(e.message); }
+};
+
+// ---------------------------------------------------------------- tabs
+function showItems(){ $("tabItems").className="on"; $("tabLive").className=""; $("mainItems").classList.remove("hidden"); $("mainLive").classList.add("hidden"); }
+function showLive(){ $("tabLive").className="on"; $("tabItems").className=""; $("mainLive").classList.remove("hidden"); $("mainItems").classList.add("hidden"); renderLive(); }
+$("tabItems").onclick = showItems; $("tabLive").onclick = showLive;
+function openLive(key){ showLive(); if(key) pickLive(key, null); }
+
+// ---------------------------------------------------------------- live tuning (the old HatStudio, in the browser)
+const DEFS = [
+  ["scale","Size",0.05,3,0.01],["rot0","Rotate X",-180,180,0.5],["rot1","Rotate Y",-180,180,0.5],["rot2","Rotate Z",-180,180,0.5],
+  ["off0","Move left/right",-4,4,0.01],["off1","Move up/down",-4,4,0.01],["off2","Move forward/back",-4,4,0.01]];
+const getv = (o,k) => k==="scale" ? o.scale : k.startsWith("rot") ? o.rot[+k[3]] : o.off[+k[3]];
+const setv = (o,k,v) => { if(k==="scale") o.scale=v; else if(k.startsWith("rot")) o.rot[+k[3]]=v; else o.off[+k[3]]=v; };
+
+function renderLive(){
+  if(!S) return;
+  const q = $("liveSearch").value.trim().toLowerCase();
+  const items = S.items.filter(i => !q || (i.ItemName+" "+i.Key).toLowerCase().includes(q));
+  $("liveList").innerHTML = items.map(i => {
+    const has = Object.values(i.live).some(Boolean);
+    return `<div class="item ${i.Key===live.key?"sel":""}" data-k="${esc(i.Key)}" style="${has?"":"opacity:.5"}"><span class="dot ${has?"ok":""}"></span><div class="n"><b>${esc(i.ItemName)}</b><span>${esc(S.slots[i.Slot]?.label||i.Slot)}${has?"":" &middot; no model file yet"}</span></div></div>`;
+  }).join("");
+  for(const el of $("liveList").children) el.onclick = () => pickLive(el.dataset.k, null);
+  if(!live.key) $("liveDetail").innerHTML = `<div class="empty"><h2>Live tuning</h2><p>Pick an item on the left. Press <b>&#9654; Run with live editor</b> (top) to start the server and the game, log in, put the item on, and move the sliders: the game shows every change at once.</p></div>`;
+}
+$("liveSearch").oninput = renderLive;
+
+async function pickLive(key, g){
+  const item = byKey(key); if(!item) return;
+  const genders = item.genders;
+  live.key = key;
+  live.g = g ?? (genders.find(x => item.live[x]) ?? genders[0]);
+  try{ live.opts = await api("/api/hat/get?key="+encodeURIComponent(key)+"&g="+live.g); }catch(e){ return toast(e.message); }
+  renderLive(); renderLiveDetail();
+}
+function renderLiveDetail(){
+  const item = byKey(live.key), o = live.opts; if(!item || !o) return;
+  const seg = item.genders.length > 1 ? `<div class="seg">${item.genders.map(g=>`<button data-g="${g}" class="${g===live.g?"on":""}">${g==="M"?"Male":"Female"}</button>`).join("")}</div>` : "";
+  $("liveDetail").innerHTML = `<div class="pad">
+    <div class="title"><h2>${esc(item.ItemName)}</h2><span class="sub">${esc(item.Key)}${live.g}.txt ${o.exists?"":"(new file)"}</span><span class="spacer"></span>${seg}</div>
+    ${!item.live[live.g] ? `<div class="banner warn" style="margin-top:12px">There is no model file for this item yet (${esc(item.Key+live.g)}.obj). The settings are saved, but nothing shows until you import the model.</div>`:""}
+    ${!S.game ? `<div class="banner" style="margin-top:12px">The game is not running. Settings are saved to the file anyway and load the next time you start.</div>`:""}
+    <div class="card"><div class="live">
+      ${DEFS.map(([k,label,min,max,step])=>`<span>${label}</span><input type="range" data-r="${k}" min="${min}" max="${max}" step="${step}" value="${getv(o,k)}"><input type="number" data-n="${k}" step="${step}" value="${getv(o,k)}">`).join("")}
+    </div>
+    <div style="margin-top:14px;display:grid;gap:6px">
+      <label><input type="checkbox" id="cFlip" ${o.flipv?"checked":""}> Flip texture upside-down</label>
+      <label><input type="checkbox" id="cMirror" ${o.mirrorx?"checked":""}> Mirror left/right</label>
+      <label><input type="checkbox" id="cTrans" ${o.transparent?"checked":""}> See-through parts (tinted glass)</label>
+      <div class="row"><span>Ribbon sway</span><select id="sSway"><option value="0" ${o.sway===0?"selected":""}>off</option><option value="1" ${o.sway===1?"selected":""}>thin side strips</option><option value="2" ${o.sway>=2?"selected":""}>any hanging piece</option></select></div>
+      ${item.genders.length>1 ? `<label><input type="checkbox" id="cBoth" checked> Also save to the other gender</label>`:""}
+    </div>
+    <div class="btns"><button id="lRevert">Revert</button><button id="lReset">Reset to default</button><span class="hint" id="lStatus"></span></div></div></div>`;
+  for(const b of document.querySelectorAll(".seg button")) b.onclick = () => pickLive(live.key, b.dataset.g);
+  for(const el of document.querySelectorAll("[data-r]")) el.oninput = () => { setv(live.opts, el.dataset.r, +el.value); document.querySelector(`[data-n="${el.dataset.r}"]`).value = el.value; queueSave(); };
+  for(const el of document.querySelectorAll("[data-n]")) el.oninput = () => { if(el.value==="") return; setv(live.opts, el.dataset.n, +el.value); document.querySelector(`[data-r="${el.dataset.n}"]`).value = el.value; queueSave(); };
+  $("cFlip").onchange = () => { live.opts.flipv = $("cFlip").checked; queueSave(); };
+  $("cMirror").onchange = () => { live.opts.mirrorx = $("cMirror").checked; queueSave(); };
+  $("cTrans").onchange = () => { live.opts.transparent = $("cTrans").checked; queueSave(); };
+  $("sSway").onchange = () => { live.opts.sway = +$("sSway").value; queueSave(); };
+  live.orig = JSON.parse(JSON.stringify(o));
+  $("lRevert").onclick = () => { live.opts = JSON.parse(JSON.stringify(live.orig)); renderLiveDetail(); queueSave(); };
+  $("lReset").onclick = () => { live.opts = Object.assign(live.opts, {scale:1, rot:[0,0,0], off:[0,0,0], flipv:false, mirrorx:false, sway:0, transparent:false}); renderLiveDetail(); queueSave(); };
+}
+function queueSave(){ clearTimeout(live.timer); live.timer = setTimeout(sendLive, 40); }
+async function sendLive(){
+  if(live.busy){ live.pending = true; return; }
+  live.busy = true;
+  try{
+    const both = $("cBoth") ? $("cBoth").checked : false;
+    const r = await api("/api/hat/set", {key:live.key, g:live.g, opts:live.opts, both});
+    const st = $("lStatus"); if(st) st.textContent = "Saved " + r.saved;
+  }catch(e){ toast(e.message); }
+  live.busy = false;
+  if(live.pending){ live.pending = false; sendLive(); }
+}
+
+load().catch(e => toast(e.message));
+</script>
+</body>
+</html>

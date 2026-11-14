@@ -15,6 +15,11 @@
     <ProjectReference Include="..\Ro3Emu.Patcher\Ro3Emu.Patcher.csproj" />
   </ItemGroup>
 
+  <!-- Our own client patches live in one folder at the repository root: customs\ClientTools. -->
+  <ItemGroup>
+    <Compile Include="..\..\customs\ClientTools\*.cs" Link="Customs\%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- The client-side hooks DLL travels inside the tool. -->
   <ItemGroup>
     <ProjectReference Include="..\Ro3Emu.ClientHooks\Ro3Emu.ClientHooks.csproj" ReferenceOutputAssembly="false" />
