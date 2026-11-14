@@ -1,22 +1,21 @@
 name: tests
 
+# Started by hand only: Actions tab > this workflow > Run workflow. It does not start for a pull request or a push, so
+# about 6 changes can be merged first and checked together once. Tick "Also run on Windows" to add the Windows tests.
 on:
-  push:
-    branches: [main]
-    # tools/config-editor is Python and HTML: no test looks at it (docs/ is not skipped, tests read it).
-    paths-ignore:
-      - 'tools/config-editor/**'
-  pull_request:
-    paths-ignore:
-      - 'tools/config-editor/**'
   workflow_dispatch:
+    inputs:
+      windows:
+        description: Also run on Windows
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
   group: tests-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -24,10 +23,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Players run the server on Windows, hosts mostly on Linux. A pull request and a push to main run Linux only
-        # (Windows minutes cost more); start the workflow by hand from the Actions page (Run workflow) to run Windows
-        # too, before a release or after a change that may behave differently there.
-        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-latest", "windows-latest"]' || '["ubuntu-latest"]') }}
+        # Players run the server on Windows, hosts mostly on Linux. A run is Linux only (Windows minutes cost more);
+        # tick "Also run on Windows" when starting the workflow, before a release or after a change that may behave
+        # differently there.
+        os: ${{ fromJSON(inputs.windows && '["ubuntu-latest", "windows-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -35,16 +34,12 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: true
       # Every test project: a test still running after 5 minutes counts as hung, and the run stops with a dump of the
       # test host and the list of the tests that were running (--blame-hang), instead of reaching the job's timeout.
-      # 15 minutes on the coverage run: coverlet writes its hits while the test host exits, 4 to 7 minutes on the server
-      # tests with no test running, and at 5 minutes blame took the finished run for a hang (main run 41292599038).
-      TEST_ARGS: --blame-hang-timeout ${{ github.event_name == 'push' && matrix.os == 'ubuntu-latest' && '15m' || '5m' }} --blame-hang-dump-type mini
-      # Coverage only on main's Linux run: it slows the tests, and one platform is enough for the numbers.
-      COVERAGE: ${{ github.event_name == 'push' && matrix.os == 'ubuntu-latest' && '--collect "XPlat Code Coverage"' || '' }}
+      TEST_ARGS: --blame-hang-timeout 5m --blame-hang-dump-type mini
     steps:
       - uses: actions/checkout@v7
         with:
-          # The parent commit holds the floor of executed tests that this run's floor may not go below (the base
-          # branch for a pull request, the previous main after a merge).
+          # The parent commit holds the floor of executed tests that this run's floor may not go below (the commit
+          # before the one that is checked).
           fetch-depth: 2
       - uses: actions/setup-dotnet@v6
         with:
@@ -59,13 +54,13 @@ jobs:
       # A step that times out fails, so the steps below still run; a job that times out is cancelled and uploads nothing.
       - name: Server tests
         timeout-minutes: 24
-        run: dotnet test tests/Ro3Emu.Tests -c Release --filter "Category!=Slow&Category!=Flaky" --logger "trx;LogFileName=server.trx" --results-directory TestResults/server ${{ env.TEST_ARGS }} ${{ env.COVERAGE }}
+        run: dotnet test tests/Ro3Emu.Tests -c Release --filter "Category!=Slow&Category!=Flaky" --logger "trx;LogFileName=server.trx" --results-directory TestResults/server ${{ env.TEST_ARGS }}
       - name: Patcher tests
         if: ${{ !cancelled() }}
-        run: dotnet test tests/Ro3Emu.Patcher.Tests -c Release --logger "trx;LogFileName=patcher.trx" --results-directory TestResults/patcher ${{ env.TEST_ARGS }} ${{ env.COVERAGE }}
+        run: dotnet test tests/Ro3Emu.Patcher.Tests -c Release --logger "trx;LogFileName=patcher.trx" --results-directory TestResults/patcher ${{ env.TEST_ARGS }}
       - name: Setup tests (RO3Emu.exe, data export, installer)
         if: ${{ !cancelled() }}
-        run: dotnet test tests/Ro3Emu.Setup.Tests -c Release --filter "Category!=Slow" --logger "trx;LogFileName=setup.trx" --results-directory TestResults/setup ${{ env.TEST_ARGS }} ${{ env.COVERAGE }}
+        run: dotnet test tests/Ro3Emu.Setup.Tests -c Release --filter "Category!=Slow" --logger "trx;LogFileName=setup.trx" --results-directory TestResults/setup ${{ env.TEST_ARGS }}
       # Fails when a project executed fewer tests than tests/test-floor.txt allows, or when that floor went down.
       - name: Executed and skipped tests
         if: always()
@@ -81,14 +76,6 @@ jobs:
           path: TestResults
           retention-days: 7
           if-no-files-found: ignore
-      - name: Upload coverage
-        if: success() && env.COVERAGE != ''
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage
-          # The attachment of each project's run (TestResults/<project>/<run id>/), not VSTest's copy in its In folder.
-          path: TestResults/*/*/coverage.cobertura.xml
-          retention-days: 30
 
   # The quarantine (docs/guide/testing.md): the tests marked Category=Flaky, each with up to two retries. Not a required
   # check and never red for a merge. A test only comes here with its reason and its date in that list.
