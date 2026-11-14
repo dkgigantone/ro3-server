@@ -1,4 +1,7 @@
+using System.Text.Json;
 using Romsg;
+using Ro3Emu.Server.Accounts;
+using Ro3Emu.Server.Data;
 using Ro3Emu.Server.Data.Config;
 
 namespace Ro3Emu.Server.Game;
@@ -16,7 +19,7 @@ public sealed partial class SkillService
     /// (inferred) Without that row the nearest one below it; the plan's other skills go back to their free level as a
     /// reset would, and a skill outside the career's tree is left out.
     /// </summary>
-    internal async Task<string> GmProfessionSkillsAsync(GameSession session, long profession)
+    internal async Task<string> GmProfessionSkillsAsync(GameSession session, long profession, bool fitPoints = false)
     {
         string reply;
         bool learned = false;
@@ -34,12 +37,19 @@ public sealed partial class SkillService
                 assigned.SkillLevel = IsNormalGroup(p, group) ? 1 : Initial(p, group);
             var tree = Tree(p.Career).Select(t => t.Group).ToHashSet();
             var outside = new List<long>();
+            var order = new List<int>();
+            var levels = new Dictionary<int, int>();
             foreach (long id in row.DescData)
             {
                 if (SkillConfig.Get(_data, id) is not { } skill || !tree.Contains((int)skill.SkillId)) { outside.Add(id); continue; }
                 int group = (int)skill.SkillId;
-                selected.SkillAssigns[group] = new SkillData { SkillId = group, SkillLevel = Math.Max((int)skill.Level, Initial(p, group)) };
+                levels[group] = Math.Max((int)skill.Level, Initial(p, group));
+                if (!order.Contains(group)) order.Add(group);
             }
+            // fitPoints (a build chosen in the skill window): a build a point or two over what the job level earns is not
+            // refused whole; levels are taken off its last skills until each rank fits.
+            int trimmed = fitPoints ? FitToPoints(p, tree, order, levels) : 0;
+            foreach (int group in order) selected.SkillAssigns[group] = new SkillData { SkillId = group, SkillLevel = levels[group] };
             var candidate = CharacterService.GenreCloneProgress(p);
             int code = StageSkillPlan(session, plans, candidate, plans.CurrentPlanIndex);
             if (code != 0) reply = $"Skill build {row.Id} refused (error {code}).";
@@ -50,11 +60,76 @@ public sealed partial class SkillService
                 await SyncAsync(session);
                 learned = true;
                 reply = $"Skill build {row.Id}: {row.DescData.Length - outside.Count} skills"
+                    + (trimmed > 0 ? $", {trimmed} levels cut to the points left" : "")
                     + (outside.Count > 0 ? $", not in this career's tree: {string.Join(' ', outside)}." : ".");
             }
         }
         if (learned) foreach (var handler in Learned) await handler(session);
         return reply;
+    }
+
+    /// <summary>
+    /// Takes levels off a build's last skills until every job rank is within the points it earned, never off a skill another
+    /// skill of the build needs (_kPreSkillRequired), then drops any skill whose requirement is still unmet (as
+    /// PrerequisitesMet would refuse it). Returns the levels cut. (inferred) Cutting the list's own order, last first, keeps
+    /// the early core skills of a build.
+    /// </summary>
+    private int FitToPoints(RoleProgress p, HashSet<int> tree, List<int> order, Dictionary<int, int> levels)
+    {
+        var rankOf = Tree(p.Career).ToDictionary(t => t.Group, t => Rank(t.Career));
+        var left = EarnedPoints(p);
+        foreach (int group in order)
+            if (rankOf.TryGetValue(group, out int rank) && left.ContainsKey(rank)) left[rank] -= Math.Max(0, levels[group] - Initial(p, group));
+        int LevelOf(int group) => levels.TryGetValue(group, out int level) ? level : Initial(p, group);
+        bool NeededByOthers(int group)
+        {
+            foreach (int other in order)
+            {
+                if (other == group || levels[other] <= Initial(p, other)) continue;
+                foreach (var (need, minimum) in Requirements(other, levels[other]))
+                    if (need == group && minimum > 0 && LevelOf(group) - 1 < minimum) return true;
+            }
+            return false;
+        }
+        int cut = 0;
+        foreach (int rank in left.Keys.ToArray())
+            while (left[rank] < 0)
+            {
+                int pick = order.AsEnumerable().Reverse().FirstOrDefault(
+                    g => rankOf.GetValueOrDefault(g) == rank && levels[g] > Initial(p, g) && !NeededByOthers(g), 0);
+                if (pick == 0) break;
+                levels[pick]--; left[rank]++; cut++;
+            }
+        bool again = true;
+        while (again)
+        {
+            again = false;
+            foreach (int group in order)
+            {
+                if (levels[group] <= Initial(p, group)) continue;
+                // As PrerequisitesMet: a minimum level (> 0) must be reached, a -1 skill must not be held.
+                bool met = Requirements(group, levels[group]).All(r =>
+                {
+                    int actual = tree.Contains(r.Group) ? LevelOf(r.Group) : 0;
+                    return !(r.Minimum == -1 ? actual > 0 : r.Minimum > 0 && actual < r.Minimum);
+                });
+                if (met) continue;
+                levels[group] = Initial(p, group);
+                again = true;
+            }
+        }
+        return cut;
+    }
+
+    /// <summary>SkillConfig._kPreSkillRequired of a skill level: (group, minimum level) pairs, -1 meaning the skill must not be held.</summary>
+    private IEnumerable<(int Group, long Minimum)> Requirements(int group, int level)
+    {
+        if (_data.Row("SkillConfig", RealId(group, level)) is not { } row
+            || !row.TryGetProperty("_kPreSkillRequired", out var pre) || pre.ValueKind != JsonValueKind.Array) yield break;
+        foreach (var req in pre.EnumerateArray())
+            if (req.ValueKind == JsonValueKind.Array && req.GetArrayLength() >= 2 && GameData.Number(req[0]) is { } g
+                && GameData.Number(req[1]) is { } l)
+                yield return ((int)g, (long)l);
     }
 
     /// <summary>
