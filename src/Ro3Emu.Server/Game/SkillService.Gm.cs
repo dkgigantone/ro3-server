@@ -124,12 +124,9 @@ public sealed partial class SkillService
     /// <summary>SkillConfig._kPreSkillRequired of a skill level: (group, minimum level) pairs, -1 meaning the skill must not be held.</summary>
     private IEnumerable<(int Group, long Minimum)> Requirements(int group, int level)
     {
-        if (_data.Row("SkillConfig", RealId(group, level)) is not { } row
-            || !row.TryGetProperty("_kPreSkillRequired", out var pre) || pre.ValueKind != JsonValueKind.Array) yield break;
-        foreach (var req in pre.EnumerateArray())
-            if (req.ValueKind == JsonValueKind.Array && req.GetArrayLength() >= 2 && GameData.Number(req[0]) is { } g
-                && GameData.Number(req[1]) is { } l)
-                yield return ((int)g, (long)l);
+        if (SkillConfig.Get(_data, RealId(group, level)) is not { } row) yield break;
+        foreach (var req in row.PreSkillRequired)
+            if (req.Length >= 2) yield return ((int)req[0], req[1]);
     }
 
     /// <summary>
